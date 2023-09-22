@@ -13,8 +13,6 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.7"
 dependencies = [
-    'pydantic==2.3.0',
-    'pydantic-settings==2.0.3',
     'pyam-iamc==1.3.1',
     'celery[librabbitmq]==5.3.4',
     'accli@git+https://github.com/iiasa/accli.git'
