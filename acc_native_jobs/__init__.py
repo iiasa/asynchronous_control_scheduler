@@ -56,6 +56,12 @@ def capture_log(func):
 
 @app.task
 @capture_log
+def verify_iamc(*args, **kwargs):
+    iamc_verification_service = IamcVerificationService(*args, **kwargs)
+
+
+@app.task
+@capture_log
 def merge_iamc(*args, **kwargs):
     iamc_verification_service = IamcVerificationService(*args, **kwargs)
     
