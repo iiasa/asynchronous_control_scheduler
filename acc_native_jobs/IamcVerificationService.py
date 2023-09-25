@@ -21,8 +21,6 @@ class CreatedObject(TypedDict):
 class MoreDiskMoreRamHandler:
     def __init__(self, verify_service_instance: "IamcVerificationService"):
         self.temp_dir = f"background_tasks/temp"
-        self.job_id = verify_service_instance.job_id
-        self.user_id = verify_service_instance.user_id
         self.project_service = verify_service_instance.project_service
         self.bucket_object_id = verify_service_instance.bucket_object_id
         self.temp_downloaded_filename = f"{uuid.uuid4().hex}.csv"
@@ -66,7 +64,7 @@ class MoreDiskMoreRamHandler:
 
     def download_file(self):
         response = self.project_service.get_file_stream(
-            self.bucket_object_id, self.job_id
+            self.bucket_object_id
         )
 
         with open(self.temp_downloaded_filepath, "wb") as tmp_file:
@@ -122,16 +120,14 @@ class MoreDiskMoreRamHandler:
         )
 
         self.project_service.register_iamc_validation(
-            self.bucket_object_id, db_index_bucket_object_id, self.job_id
+            self.bucket_object_id, db_index_bucket_object_id
         )
 
     def upload_new_file(self, local_file_path, bucket_filename):
         with open(local_file_path, "rb") as file_stream:
             bucket_object_id = self.project_service.add_filestream_as_job_output(
                 bucket_filename,
-                file_stream,
-                self.user_id,
-                self.job_id,
+                file_stream
             )
 
         return bucket_object_id
@@ -161,19 +157,15 @@ class IamcVerificationService:
             cli_base_url=env.ACCELERATOR_API_URL
         )
 
-        self.project_service.update_job_status("PROCESSING")
-
         self.bucket_object_id = bucket_object_id
 
         self.ram_required = ram_required
         self.disk_required = disk_required
         self.cores_required = cores_required
 
-        try:
-            self()
-        except Exception as err:
-            self.project_service.update_job_status("ERROR")
-            raise err
+        
+        self()
+        
 
     def get_file_size(self) -> int:
         result = self.project_service.get_file_stat(self.bucket_object_id)
@@ -220,4 +212,4 @@ class IamcVerificationService:
         elif (self.disk_required < file_size) and (self.ram_required < file_size):
             self.verify_with_less_disk_less_ram()
 
-        self.project_service.update_job_status("DONE")
+        
