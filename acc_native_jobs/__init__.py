@@ -23,15 +23,15 @@ def capture_log(func):
         job_token = kwargs['job_token']    
         project_service = ACliService(
             job_token,
-            cli_base_url=env.ACCELERATOR_API_URL
+            cli_base_url=env.ACCELERATOR_CLI_BASE_URL
         )
 
         project_service.update_job_status("PROCESSING")
 
         log_filename = f'{uuid.uuid4().hex}.log'
-        log_filepath = f'temp/{log_filename}'
+        log_filepath = f'{log_filename}'
 
-        with open(log_filepath, 'w') as log_stream:
+        with open(log_filepath, 'w+') as log_stream:
 
             with redirect_stdout(log_stream):
                 try:
