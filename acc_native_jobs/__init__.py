@@ -35,10 +35,11 @@ def capture_log(func):
 
             with redirect_stdout(log_stream):
                 try:
-                    func()
+                    func(*args, **kwargs)
+                    project_service.update_job_status("DONE")
                 except Exception as err:
                     project_service.update_job_status("ERROR")
-                    error_message = ''.join(traceback.format_tb(err.__traceback__))
+                    error_message = ''.join(traceback.format_exc())
                     log_stream.write(error_message)
 
         with open(log_filepath, "rb") as file_stream:
@@ -46,8 +47,6 @@ def capture_log(func):
                 log_filename,
                 file_stream
             )
-    
-        project_service.update_job_status("DONE")
 
         #TODO @wrufesh delete temp file
         
@@ -57,12 +56,6 @@ def capture_log(func):
 @app.task
 @capture_log
 def verify_iamc(*args, **kwargs):
-    iamc_verification_service = IamcVerificationService(*args, **kwargs)
-
-
-@app.task
-@capture_log
-def merge_iamc(*args, **kwargs):
     iamc_verification_service = IamcVerificationService(*args, **kwargs)
     
 
