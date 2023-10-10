@@ -20,7 +20,7 @@ class CreatedObject(TypedDict):
 
 class MoreDiskMoreRamHandler:
     def __init__(self, verify_service_instance: "IamcVerificationService"):
-        self.temp_dir = f"background_tasks/temp"
+        self.temp_dir = f"tmp_files"
         self.project_service = verify_service_instance.project_service
         self.bucket_object_id = verify_service_instance.bucket_object_id
         self.temp_downloaded_filename = f"{uuid.uuid4().hex}.csv"

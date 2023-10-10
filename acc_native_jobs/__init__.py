@@ -30,7 +30,7 @@ def capture_log(func):
         project_service.update_job_status("PROCESSING")
 
         log_filename = f'{uuid.uuid4().hex}.log'
-        log_filepath = f'{log_filename}'
+        log_filepath = f'tmp_files/{log_filename}'
 
         with open(log_filepath, 'w+') as log_stream:
 
