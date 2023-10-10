@@ -59,7 +59,7 @@ class MoreDiskMoreRamHandler:
 
         finally:
             self.delete_local_file(self.temp_downloaded_filepath)
-            self.delete_local_file(f"{self.temp_dir}/{self.meta_data['filename']}")
+            self.delete_local_file(f"{self.temp_dir}/{self.meta_data.get('filename', '')}")
             self.delete_local_file(self.temp_converted_wide_filepath)
 
     def download_file(self):
