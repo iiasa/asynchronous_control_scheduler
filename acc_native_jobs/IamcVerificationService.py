@@ -169,7 +169,8 @@ class IamcVerificationService:
 
     def get_file_size(self) -> int:
         result = self.project_service.get_file_stat(self.bucket_object_id)
-        return result.get('_size')
+
+        return result.get('size')
 
     def verify_with_less_disk_less_ram(self):
         raise NotImplementedError(
