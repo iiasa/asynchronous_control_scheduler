@@ -157,7 +157,8 @@ class IamcVerificationService:
     ):
         self.project_service = ACliService(
             job_token,
-            cli_base_url=env.ACCELERATOR_CLI_BASE_URL
+            cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            verify_cert=False
         )
 
         self.bucket_object_id = bucket_object_id

@@ -23,7 +23,8 @@ def capture_log(func):
         job_token = kwargs['job_token']    
         project_service = ACliService(
             job_token,
-            cli_base_url=env.ACCELERATOR_CLI_BASE_URL
+            cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            verify_cert=False
         )
 
         project_service.update_job_status("PROCESSING")
