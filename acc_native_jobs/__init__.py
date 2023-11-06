@@ -46,7 +46,8 @@ def capture_log(func):
         with open(log_filepath, "rb") as file_stream:
             bucket_object_id = project_service.add_filestream_as_job_output(
                 log_filename,
-                file_stream
+                file_stream,
+                is_log_file=True
             )
 
         #TODO @wrufesh delete temp file
