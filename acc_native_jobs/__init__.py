@@ -5,6 +5,8 @@ from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
 
 from accli import ACliService
+
+from acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
 from .IamcVerificationService import IamcVerificationService
 
 from configs.Environment import get_environment_variables
