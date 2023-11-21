@@ -61,4 +61,10 @@ def verify_iamc(*args, **kwargs):
     iamc_verification_service = IamcVerificationService(*args, **kwargs)
     
 
+
+@app.task
+@capture_log
+def verify_csv_regional_timeseries(*args, **kwargs):
+    iamc_verification_service = CsvRegionalTimeseriesVerificationService(*args, **kwargs)
+
     
