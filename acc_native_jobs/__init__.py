@@ -5,6 +5,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
 
 from accli import ACliService
+from acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
 
 from acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
 from .IamcVerificationService import IamcVerificationService
@@ -57,17 +58,16 @@ def capture_log(func):
     return wrapper_func
 
 
-# @app.task
-# @capture_log
-# def verify_iamc(*args, **kwargs):
-#     iamc_verification_service = IamcVerificationService(*args, **kwargs)
-    
-
-
 @app.task
 @capture_log
 def verify_csv_regional_timeseries(*args, **kwargs):
-    iamc_verification_service = CsvRegionalTimeseriesVerificationService(*args, **kwargs)
-    iamc_verification_service()
+    csv_regional_timeseries_verification_service = CsvRegionalTimeseriesVerificationService(*args, **kwargs)
+    csv_regional_timeseries_verification_service()
+
+@app.task
+@capture_log
+def merge_csv_regional_timeseries(*args, **kwargs):
+    csv_regional_timeseries_merge_service = CSVRegionalTimeseriesMergeService(*args, **kwargs)
+    csv_regional_timeseries_merge_service()
 
     
