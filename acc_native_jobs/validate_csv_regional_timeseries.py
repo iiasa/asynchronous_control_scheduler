@@ -1,5 +1,8 @@
+import os
+import subprocess
 import csv
 import uuid
+import itertools
 from typing import Optional
 from accli import ACliService
 from configs.Environment import get_environment_variables
@@ -7,6 +10,11 @@ from jsonschema import validate as jsonschema_validate
 from jsonschema.exceptions import ValidationError, SchemaError
 
 env = get_environment_variables()
+
+def lower_rows(iterator):
+    # return itertools.chain([next(iterator).lower()], iterator)
+    for item in iterator:
+        yield item.lower()
 
 class CsvRegionalTimeseriesVerificationService():
     def __init__(
@@ -39,6 +47,7 @@ class CsvRegionalTimeseriesVerificationService():
 
         self.temp_downloaded_filename = f"{uuid.uuid4().hex}.csv"
         self.temp_validated_filename = f"{uuid.uuid4().hex}.csv"
+        self.temp_sorted_filename = f"{uuid.uuid4().hex}.csv"
         self.temp_dir = f"tmp_files"
         self.temp_downloaded_filepath = (
             f"{self.temp_dir}/{self.temp_downloaded_filename}"
@@ -46,18 +55,22 @@ class CsvRegionalTimeseriesVerificationService():
         self.temp_validated_filepath = (
             f"{self.temp_dir}/{self.temp_validated_filename}"
         )
+
+        self.temp_sorted_filepath = (
+            f"{self.temp_dir}/{self.temp_sorted_filename}"
+        )
     
     
     def get_map_documents(self, field_name):
-        map_documents = self.rules.get(f'Map_{field_name}')
+        map_documents = self.rules.get(f'map_{field_name}')
         return map_documents
 
 
     def init_validation_metadata(self):
         self.validation_metadata = {
-            self.rules['rootSchemaDeclarations']['timeDimension']: {
-                "minValue": float('+inf'),
-                "maxValue": float('-inf')
+            self.time_dimension.lower(): {
+                "min_value": float('+inf'),
+                "max_value": float('-inf')
             }
         }
 
@@ -80,11 +93,16 @@ class CsvRegionalTimeseriesVerificationService():
         dataset_template_details = self.project_service.get_dataset_template_details(self.dataset_template_id)
         self.rules =  dataset_template_details.get('rules')
 
+
         assert self.rules, \
             f"No dataset template rules found for dataset_template id: \
                 {self.dataset_template_id}"
+        
+        self.time_dimension = self.rules['root_schema_declarations']['time_dimension']
+        self.value_dimension = self.rules['root_schema_declarations']['value_dimension']
 
     def validate_row_data(self, row):
+        # print(row)
         try:
             jsonschema_validate(
                 self.rules.get('root'),
@@ -102,7 +120,29 @@ class CsvRegionalTimeseriesVerificationService():
             )
         
 
-        for key in self.rules['root']:
+        for key in self.rules['root']['properties']:
+
+            if key == self.time_dimension.lower():
+                if float(row[key]) < self.validation_metadata[
+                    self.time_dimension.lower()
+                ]["min_value"]:
+                    self.validation_metadata[
+                        self.time_dimension.lower()
+                    ]["min_value"] = float(row[key])
+
+                if float(row[key]) > self.validation_metadata[
+                    self.time_dimension.lower()
+                ]["max_value"]:
+                    self.validation_metadata[
+                        self.time_dimension.lower()
+                    ]["max_value"] = float(row[key])
+                
+                continue
+
+            if key == self.value_dimension:
+                continue
+
+
             map_documents = self.get_map_documents(key)
 
             if map_documents:
@@ -110,7 +150,7 @@ class CsvRegionalTimeseriesVerificationService():
                     raise ValueError(f"{row[key]} must be one of {map_documents.keys()}" )
                 
             else:
-                if not self.validation_metadata.get(key):
+                if self.validation_metadata.get(key):
                     if self.harvest_count[key] <= 200: #limit harvest
                         self.validation_metadata[key].add(row[key])
                         self.harvest_count[key] += 1
@@ -119,24 +159,11 @@ class CsvRegionalTimeseriesVerificationService():
                     self.validation_metadata[key] = set([row[key]])
                     self.harvest_count[key] = 0
 
-            if key == self.rules['rootSchemaDeclarations']['timeDimension']:
-                if float(row[key]) < self.validation_metadata[
-                    self.rules['rootSchemaDeclarations']['timeDimension']
-                ]["minValue"]:
-                    self.validation_metadata[
-                        self.rules['rootSchemaDeclarations']['timeDimension']
-                    ]["minValue"] = float(row[key])
+            
 
-                if float(row[key]) < self.validation_metadata[
-                    self.rules['rootSchemaDeclarations']['timeDimension']
-                ]["maxValue"]:
-                    self.validation_metadata[
-                        self.rules['rootSchemaDeclarations']['timeDimension']
-                    ]["minValue"] = float(row[key])
+        extra_template_validators = self.rules.get('template_validators')
 
-        extra_template_validators = self.rules.get('templateValidators')
-
-        if extra_template_validators:
+        if extra_template_validators and extra_template_validators != 'not defined':
                 
             for row_key in extra_template_validators.keys():
                 lhs = row[row_key]
@@ -158,14 +185,14 @@ class CsvRegionalTimeseriesVerificationService():
                             rhs = rhs[pointer[1:-1]]
 
 
-                    if condition == 'valueEquals':
-                        if lhs != rhs:
+                    if condition == 'value_equals':
+                        if lhs.lower() != rhs.lower():
                             raise ValueError(
                                 f'{lhs} in {row_key} column must be equal to {rhs}.'
                             )
                     
-                    if condition == 'isSubsetOfMap':
-                        if not lhs in rhs:
+                    if condition == 'is_subset_of_map':
+                        if not lhs.lower() in rhs.lower():
                             raise ValueError(
                                 f'{lhs} in {row_key} column must be member of {rhs}.'
                             )
@@ -174,7 +201,7 @@ class CsvRegionalTimeseriesVerificationService():
     def create_validated_file(self):
         with open(self.temp_downloaded_filepath) as csvfile:
             reader = csv.DictReader(
-                csvfile, 
+                lower_rows(csvfile), 
                 fieldnames=self.csv_fieldnames, 
                 restkey='restkeys', 
                 restval='restvals'
@@ -192,22 +219,45 @@ class CsvRegionalTimeseriesVerificationService():
                 file_stream,
             )
         return bucket_object_id
+    
+    def delete_local_file(self, filepath):
+        if os.path.exists(filepath):
+            os.remove(filepath)
                 
     def __call__(self):
         self.download_file()
         self.set_csv_regional_validation_rules()
 
         self.init_validation_metadata()
+        
         self.create_validated_file()
-
         print('File validated against rules.')
-        self.replace_file_content(self.temp_validated_filepath, self.bucket_object_id)
-        print('File replaced')
+
+        self.delete_local_file(self.temp_downloaded_filepath)
+        print('Temporary downloaded file deleted')
+
+        subprocess.run(
+            f"head -n1 {self.temp_validated_filepath} >> {self.temp_sorted_filepath} && tail -n+2 {self.temp_validated_filepath} | sort >> {self.temp_sorted_filepath}",
+            capture_output=True,
+            shell=True
+        )
+        print("Validated file sorted")
+
+        self.delete_local_file(self.temp_downloaded_filepath)
+        print('Temporary validated file deleted')
+
+        # self.replace_file_content(self.temp_sorted_filepath, self.bucket_object_id)
+        # print('File replaced')
+        
         self.project_service.register_validation(
             self.bucket_object_id,
             self.dataset_template_id,
             self.validation_metadata
         )
         print('Validation complete')
+
+        print(self.temp_sorted_filepath)
+        # self.delete_local_file(self.temp_sorted_filepath)
+        # print('Temporary sorted file deleted')
 
    

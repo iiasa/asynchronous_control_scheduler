@@ -57,10 +57,10 @@ def capture_log(func):
     return wrapper_func
 
 
-@app.task
-@capture_log
-def verify_iamc(*args, **kwargs):
-    iamc_verification_service = IamcVerificationService(*args, **kwargs)
+# @app.task
+# @capture_log
+# def verify_iamc(*args, **kwargs):
+#     iamc_verification_service = IamcVerificationService(*args, **kwargs)
     
 
 
@@ -68,5 +68,6 @@ def verify_iamc(*args, **kwargs):
 @capture_log
 def verify_csv_regional_timeseries(*args, **kwargs):
     iamc_verification_service = CsvRegionalTimeseriesVerificationService(*args, **kwargs)
+    iamc_verification_service()
 
     
