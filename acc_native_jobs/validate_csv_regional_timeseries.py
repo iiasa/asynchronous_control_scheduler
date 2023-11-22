@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import csv
@@ -198,7 +199,7 @@ class CsvRegionalTimeseriesVerificationService():
                             )
 
         return row          
-    def create_validated_file(self):
+    def get_validated_rows(self):
         with open(self.temp_downloaded_filepath) as csvfile:
             reader = csv.DictReader(
                 lower_rows(csvfile), 
@@ -210,7 +211,43 @@ class CsvRegionalTimeseriesVerificationService():
             for row in reader:
                 row.pop('restkeys', None)
                 row.pop('restvals', None)
-                self.validate_row_data(row)
+                row = self.validate_row_data(row)
+
+                yield row
+    
+    def create_validated_file(self):
+        with open(self.temp_validated_filepath, 'w') as csv_validated_file:
+
+            # Prepare final header order
+            headers = self.rules['root']['properties'].copy()
+
+            self.validated_headers = []
+
+            final_csv_column_order = self.rules['root_schema_declarations'].get('final_csv_column_order')
+
+            if final_csv_column_order:
+                for item in final_csv_column_order:
+                    if item not in [self.time_dimension, self.value_dimension]:
+                        self.validated_headers.append(item)
+            
+            for item in headers:
+                used_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
+                if item not in used_headers:
+                    self.validated_headers.append(item)
+            
+            self.validated_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
+            # End final order preparation
+
+            
+            writer = csv.DictWriter(csv_validated_file, fieldnames=self.validated_headers)
+
+            writer.writeheader()
+            
+            validated_rows = self.get_validated_rows()
+
+            for row in validated_rows:
+                writer.writerow(row)
+        
 
     def replace_file_content(self, local_file_path, bucket_object_id):
         with open(local_file_path, "rb") as file_stream:
@@ -236,19 +273,37 @@ class CsvRegionalTimeseriesVerificationService():
         self.delete_local_file(self.temp_downloaded_filepath)
         print('Temporary downloaded file deleted')
 
+
+        sort_order_option_text = ' '.join([f"-k{i+1},{i+1}" for i in range(len(self.validated_headers[:-1]))])
+
+        sort_command = f"head -n1 {self.temp_validated_filepath} >> {self.temp_sorted_filepath} && tail -n+2 {self.temp_validated_filepath} | sort -t',' {sort_order_option_text} >> {self.temp_sorted_filepath}"
+
+        print(sort_command)
+        print(self.validated_headers)
+
         subprocess.run(
-            f"head -n1 {self.temp_validated_filepath} >> {self.temp_sorted_filepath} && tail -n+2 {self.temp_validated_filepath} | sort >> {self.temp_sorted_filepath}",
+            sort_command,
             capture_output=True,
             shell=True
         )
         print("Validated file sorted")
 
-        self.delete_local_file(self.temp_downloaded_filepath)
+        self.delete_local_file(self.temp_validated_filepath)
         print('Temporary validated file deleted')
 
-        # self.replace_file_content(self.temp_sorted_filepath, self.bucket_object_id)
-        # print('File replaced')
-        
+        self.replace_file_content(self.temp_sorted_filepath, self.bucket_object_id)
+        print('File replaced')
+
+        # Monkey patch serializer
+        def monkey_patched_json_encoder_default(encoder, obj):
+            if isinstance(obj, set):
+                return list(obj)
+            return json.JSONEncoder.default(encoder, obj)
+
+        json.JSONEncoder.default = monkey_patched_json_encoder_default
+        # Monkey patch serializer
+
+
         self.project_service.register_validation(
             self.bucket_object_id,
             self.dataset_template_id,
@@ -257,7 +312,7 @@ class CsvRegionalTimeseriesVerificationService():
         print('Validation complete')
 
         print(self.temp_sorted_filepath)
-        # self.delete_local_file(self.temp_sorted_filepath)
-        # print('Temporary sorted file deleted')
+        self.delete_local_file(self.temp_sorted_filepath)
+        print('Temporary sorted file deleted')
 
    
