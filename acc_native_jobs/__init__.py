@@ -58,13 +58,13 @@ def capture_log(func):
     return wrapper_func
 
 
-@app.task
+@app.task(name='verify_csv_regional_timeseries')
 @capture_log
 def verify_csv_regional_timeseries(*args, **kwargs):
     csv_regional_timeseries_verification_service = CsvRegionalTimeseriesVerificationService(*args, **kwargs)
     csv_regional_timeseries_verification_service()
 
-@app.task
+@app.task(name='merge_csv_regional_timeseries')
 @capture_log
 def merge_csv_regional_timeseries(*args, **kwargs):
     csv_regional_timeseries_merge_service = CSVRegionalTimeseriesMergeService(*args, **kwargs)
