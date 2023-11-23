@@ -1,0 +1,14 @@
+Downloading file to validate.
+File download complete
+Downloading file to validate.
+File download complete
+Merge complete
+Traceback (most recent call last):
+  File "/app/acc_native_jobs/__init__.py", line 42, in wrapper_func
+    func(*args, **kwargs)
+  File "/app/acc_native_jobs/__init__.py", line 71, in merge_csv_regional_timeseries
+    csv_regional_timeseries_merge_service()
+  File "/app/acc_native_jobs/merge_csv_regional_timeseries.py", line 166, in __call__
+    self.delete_local_file(first_downloaded_filepath)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CSVRegionalTimeseriesMergeService' object has no attribute 'temp_sorted_filepath'

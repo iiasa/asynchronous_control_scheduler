@@ -163,7 +163,6 @@ class CSVRegionalTimeseriesMergeService:
         )
         print('Merge complete')
 
-        print(self.temp_sorted_filepath)
         self.delete_local_file(first_downloaded_filepath)
         print('Temporary sorted file deleted')
 

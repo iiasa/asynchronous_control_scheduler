@@ -102,8 +102,12 @@ class CsvRegionalTimeseriesVerificationService():
         self.time_dimension = self.rules['root_schema_declarations']['time_dimension']
         self.value_dimension = self.rules['root_schema_declarations']['value_dimension']
 
+        self.region_dimension = self.rules['root_schema_declarations']['region_dimension']
+
+        # specific to regional timeseries
+        self.region_layer_dimension = self.rules['root_schema_declarations']['region_layer_map_key']
+
     def validate_row_data(self, row):
-        # print(row)
         try:
             jsonschema_validate(
                 self.rules.get('root'),
@@ -148,7 +152,7 @@ class CsvRegionalTimeseriesVerificationService():
 
             if map_documents:
                 if row[key] not in map_documents:
-                    raise ValueError(f"{row[key]} must be one of {map_documents.keys()}" )
+                    raise ValueError(f"'{row[key]}' must be one of {map_documents.keys()}" )
                 
             else:
                 if self.validation_metadata.get(key):
@@ -211,7 +215,13 @@ class CsvRegionalTimeseriesVerificationService():
             for row in reader:
                 row.pop('restkeys', None)
                 row.pop('restvals', None)
-                row = self.validate_row_data(row)
+
+                try:
+                    row = self.validate_row_data(row)
+                except Exception as err:
+                    print(f"Data: {row}")
+                    raise err
+
 
                 yield row
     
@@ -227,15 +237,15 @@ class CsvRegionalTimeseriesVerificationService():
 
             if final_csv_column_order:
                 for item in final_csv_column_order:
-                    if item not in [self.time_dimension, self.value_dimension]:
+                    if item not in [self.time_dimension, self.value_dimension, self.region_layer_dimension]:
                         self.validated_headers.append(item)
             
             for item in headers:
-                used_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
+                used_headers = self.validated_headers + [self.time_dimension, self.value_dimension, self.region_layer_dimension]
                 if item not in used_headers:
                     self.validated_headers.append(item)
             
-            self.validated_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
+            self.validated_headers = self.validated_headers + [self.time_dimension, self.value_dimension, self.region_layer_dimension]
             # End final order preparation
 
             
@@ -246,6 +256,7 @@ class CsvRegionalTimeseriesVerificationService():
             validated_rows = self.get_validated_rows()
 
             for row in validated_rows:
+                row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
                 writer.writerow(row)
         
 
@@ -267,11 +278,12 @@ class CsvRegionalTimeseriesVerificationService():
 
         self.init_validation_metadata()
         
-        self.create_validated_file()
-        print('File validated against rules.')
-
-        self.delete_local_file(self.temp_downloaded_filepath)
-        print('Temporary downloaded file deleted')
+        try:
+            self.create_validated_file()
+            print('File validated against rules.')
+        finally:
+            self.delete_local_file(self.temp_downloaded_filepath)
+            print('Temporary downloaded file deleted')
 
 
         sort_order_option_text = ' '.join([f"-k{i+1},{i+1}" for i in range(len(self.validated_headers[:-1]))])

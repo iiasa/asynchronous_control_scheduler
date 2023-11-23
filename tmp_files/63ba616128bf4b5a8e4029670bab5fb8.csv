@@ -1,0 +1,5 @@
+model,scenario,region,variable,item,unit,year,value,layer
+magnet,baseline,fra,popt,tot,million,2017,68.51683807,iso3
+magnet,baseline,est,popt,tot,million,2017,1.317384005,iso3
+magnet,baseline,dnk,popt,tot,million,2017,5.764979839,iso3
+magnet,baseline,cze,popt,tot,million,2017,10.5944376,iso3
