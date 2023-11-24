@@ -1,0 +1,2 @@
+model,scenario,region,variable,item,unit,year,value,layer
+globiom-dev,baseline,ame,land,crp,1000 ha,2000,279434.8058,agmip_region

@@ -61,9 +61,7 @@ class CsvRegionalTimeseriesVerificationService():
             f"{self.temp_dir}/{self.temp_sorted_filename}"
         )
 
-        self.is_valid = True
-        self.last_error_msg = None
-        self.last_error_row = None
+        self.errors = dict()
     
     
     def get_map_documents(self, field_name):
@@ -78,8 +76,6 @@ class CsvRegionalTimeseriesVerificationService():
                 "max_value": float('-inf')
             }
         }
-
-        self.harvest_count = {}
 
     def download_file(self):
         print('Downloading file to validate.')
@@ -158,17 +154,14 @@ class CsvRegionalTimeseriesVerificationService():
                 if row[key] not in map_documents:
                     raise ValueError(f"'{row[key]}' must be one of {map_documents.keys()}" )
                 
+        
+            if self.validation_metadata.get(key):
+                if len(self.validation_metadata[key]) <= 200: #limit harvest
+                    self.validation_metadata[key].add(row[key])
+
             else:
-                if self.validation_metadata.get(key):
-                    if self.harvest_count[key] <= 200: #limit harvest
-                        self.validation_metadata[key].add(row[key])
-                        self.harvest_count[key] += 1
+                self.validation_metadata[key] = set([row[key]])
 
-                else:
-                    self.validation_metadata[key] = set([row[key]])
-                    self.harvest_count[key] = 0
-
-            
 
         extra_template_validators = self.rules.get('template_validators')
 
@@ -222,18 +215,10 @@ class CsvRegionalTimeseriesVerificationService():
 
                 try:
                     row = self.validate_row_data(row)
-
                     row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
                 except Exception as err:
-                    self.is_valid = False
-                    if self.last_error_msg == None:
-                        self.last_error_msg = str(err)
-                        self.last_error_row = row
-                    else:
-                        if self.last_error_msg != str(err):
-                            print(self.last_error_row)
-                            print(self.last_error_msg)
-
+                    if len(self.errors) <= 50:
+                        self.errors[str(err)] = str(row)
 
                 yield row
     
@@ -297,7 +282,10 @@ class CsvRegionalTimeseriesVerificationService():
             self.delete_local_file(self.temp_downloaded_filepath)
             print('Temporary downloaded file deleted')
 
-        if not self.is_valid:
+        if self.errors:
+            for key in self.errors:
+                print(f"Invalid data error: {self.errors[key]}")
+                print(f"Invalid data: {key}")
             self.delete_local_file(self.temp_validated_filepath)
             print('Temporary validated file deleted')
             raise ValueError("Invalid data: Data not comply with template rules.")
