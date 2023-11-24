@@ -60,6 +60,10 @@ class CsvRegionalTimeseriesVerificationService():
         self.temp_sorted_filepath = (
             f"{self.temp_dir}/{self.temp_sorted_filename}"
         )
+
+        self.is_valid = True
+        self.last_error_msg = None
+        self.last_error_row = None
     
     
     def get_map_documents(self, field_name):
@@ -218,9 +222,17 @@ class CsvRegionalTimeseriesVerificationService():
 
                 try:
                     row = self.validate_row_data(row)
+
+                    row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
                 except Exception as err:
-                    print(f"Data: {row}")
-                    raise err
+                    self.is_valid = False
+                    if self.last_error_msg == None:
+                        self.last_error_msg = str(err)
+                        self.last_error_row = row
+                    else:
+                        if self.last_error_msg != str(err):
+                            print(self.last_error_row)
+                            print(self.last_error_msg)
 
 
                 yield row
@@ -249,14 +261,14 @@ class CsvRegionalTimeseriesVerificationService():
             # End final order preparation
 
             
-            writer = csv.DictWriter(csv_validated_file, fieldnames=self.validated_headers)
+            writer = csv.DictWriter(csv_validated_file, fieldnames=self.validated_headers, extrasaction='ignore')
 
             writer.writeheader()
             
             validated_rows = self.get_validated_rows()
 
             for row in validated_rows:
-                row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
+            
                 writer.writerow(row)
         
 
@@ -284,6 +296,11 @@ class CsvRegionalTimeseriesVerificationService():
         finally:
             self.delete_local_file(self.temp_downloaded_filepath)
             print('Temporary downloaded file deleted')
+
+        if not self.is_valid:
+            self.delete_local_file(self.temp_validated_filepath)
+            print('Temporary validated file deleted')
+            raise ValueError("Invalid data: Data not comply with template rules.")
 
 
         sort_order_option_text = ' '.join([f"-k{i+1},{i+1}" for i in range(len(self.validated_headers[:-1]))])

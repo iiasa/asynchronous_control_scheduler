@@ -67,7 +67,7 @@ class CSVRegionalTimeseriesMergeService:
             bucket_object_id
         )
 
-        filepath = f"{self.temp_downloaded_filepath}_{bucket_object_id}" 
+        filepath = f"{self.temp_downloaded_filepath[:-5]}_{bucket_object_id}.csv" 
 
         with open(filepath, "wb") as tmp_file:
             for data in response.stream(amt=1024 * 1024):
@@ -128,13 +128,19 @@ class CSVRegionalTimeseriesMergeService:
 
             next_downloaded_filepath = self.download_file(bucket_object_id)
 
-            with open(first_downloaded_filepath, "wb") as merged_file:
+            with open(first_downloaded_filepath, "ab") as merged_file:
                 with open(next_downloaded_filepath, 'rb') as being_merged_file:
-                    dat = being_merged_file.read(1024**2)
-                    if current_end_byte != b'\n':
-                        dat = '\n' + dat
                     
-                    merged_file.write(dat)
+                    if current_end_byte != b'\n':
+                        dat = '\n'
+                        merged_file.write(dat)
+
+                    while True:
+                        dat = being_merged_file.read(1024**2)
+                        if not dat:
+                            break
+                        merged_file.write(dat)
+
                 
                 self.delete_local_file(next_downloaded_filepath)
         
@@ -142,7 +148,7 @@ class CSVRegionalTimeseriesMergeService:
 
         with open(first_downloaded_filepath, "rb") as file_stream:
             uploaded_bucket_object_id = self.project_service.add_filestream_as_job_output(
-                f"Merged_{self.temp_downloaded_filename[:7]}",
+                f"Merged_{self.temp_downloaded_filename[:7]}.csv",
                 file_stream,
             )
 
