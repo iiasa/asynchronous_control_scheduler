@@ -213,12 +213,12 @@ class CsvRegionalTimeseriesVerificationService():
                 row.pop('restkeys', None)
                 row.pop('restvals', None)
 
-                # try:
-                row = self.validate_row_data(row)
-                row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
-                # except Exception as err:
-                #     if len(self.errors) <= 50:
-                #         self.errors[str(err)] = str(row)
+                try:
+                    row = self.validate_row_data(row)
+                    row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
+                except Exception as err:
+                    if len(self.errors) <= 50:
+                        self.errors[str(err)] = str(row)
 
                 yield row
     
