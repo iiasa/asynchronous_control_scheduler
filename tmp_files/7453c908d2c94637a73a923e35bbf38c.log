@@ -1,0 +1,12 @@
+Downloading file to validate.
+File download complete
+File validated against rules.
+Temporary downloaded file deleted
+head -n1 tmp_files/8b1fae6b4b204984926409e4322c65fd.csv >> tmp_files/75e52d7dd86b45d090c6b44c093ef6f2.csv && tail -n+2 tmp_files/8b1fae6b4b204984926409e4322c65fd.csv | sort -t',' -k1,1 -k2,2 -k3,3 -k4,4 -k5,5 -k6,6 -k7,7 -k8,8 >> tmp_files/75e52d7dd86b45d090c6b44c093ef6f2.csv
+['model', 'scenario', 'region', 'variable', 'item', 'unit', 'year', 'value', 'layer']
+Validated file sorted
+Temporary validated file deleted
+File replaced
+Validation complete
+tmp_files/75e52d7dd86b45d090c6b44c093ef6f2.csv
+Temporary sorted file deleted

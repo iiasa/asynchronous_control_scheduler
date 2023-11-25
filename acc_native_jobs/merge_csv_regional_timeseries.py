@@ -84,10 +84,16 @@ class CSVRegionalTimeseriesMergeService:
         if os.path.exists(filepath):
             os.remove(filepath)
 
-    def get_last_byte_of_file(self, filepath):
+    def get_possible_file_line_break(self, filepath):
+        breaks = []
         with open(filepath, 'rb') as fl:
             fl.seek(-1, 2)
-            return fl.read()
+            breaks.append(fl.read())
+
+            fl.seek(-2, 2)
+            breaks.append(fl.read())
+        return breaks
+
         
     def get_merged_validated_metadata(self):
         first_validation_details = self.project_service.get_bucket_object_validation_details(self.bucket_object_id_list[0])
@@ -124,14 +130,14 @@ class CSVRegionalTimeseriesMergeService:
 
         for bucket_object_id in self.bucket_object_id_list[1:]:
 
-            current_end_byte = self.get_last_byte_of_file(first_downloaded_filepath)
+            possible_line_breaks = self.get_possible_file_line_break(first_downloaded_filepath)
 
             next_downloaded_filepath = self.download_file(bucket_object_id)
 
             with open(first_downloaded_filepath, "ab") as merged_file:
                 with open(next_downloaded_filepath, 'rb') as being_merged_file:
                     
-                    if current_end_byte != b'\n':
+                    if not set([b'\n', b'\r\n', b'\r', b'\n\r']).intersection(set(possible_line_breaks)):
                         dat = '\n'
                         merged_file.write(dat)
 

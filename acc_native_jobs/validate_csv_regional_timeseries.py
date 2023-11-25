@@ -179,12 +179,12 @@ class CsvRegionalTimeseriesVerificationService():
                     rhs = None
                     for pointer in rhs_value_pointer:
                         if pointer.startswith('&'):
-                            rhs = self.rule[pointer[1:]]
+                            rhs = self.rules[pointer[1:]]
                         elif pointer.startswith('{') and pointer.endswith('}'):
-                            rhs = rhs[pointer[1:-1]]
+                            rhs = rhs[row[pointer[1:-1]]]
 
                         else:
-                            rhs = rhs[pointer[1:-1]]
+                            rhs = rhs[pointer]
 
 
                     if condition == 'value_equals':
@@ -213,12 +213,12 @@ class CsvRegionalTimeseriesVerificationService():
                 row.pop('restkeys', None)
                 row.pop('restvals', None)
 
-                try:
-                    row = self.validate_row_data(row)
-                    row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
-                except Exception as err:
-                    if len(self.errors) <= 50:
-                        self.errors[str(err)] = str(row)
+                # try:
+                row = self.validate_row_data(row)
+                row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
+                # except Exception as err:
+                #     if len(self.errors) <= 50:
+                #         self.errors[str(err)] = str(row)
 
                 yield row
     
@@ -284,8 +284,8 @@ class CsvRegionalTimeseriesVerificationService():
 
         if self.errors:
             for key in self.errors:
-                print(f"Invalid data error: {self.errors[key]}")
-                print(f"Invalid data: {key}")
+                print(f"Invalid data: {self.errors[key]}")
+                print(f"Error: {key}")
             self.delete_local_file(self.temp_validated_filepath)
             print('Temporary validated file deleted')
             raise ValueError("Invalid data: Data not comply with template rules.")

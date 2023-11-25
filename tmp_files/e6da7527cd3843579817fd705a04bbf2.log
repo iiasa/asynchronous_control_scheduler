@@ -1,0 +1,15 @@
+Downloading file to validate.
+File download complete
+File validated against rules.
+Temporary downloaded file deleted
+Invalid data error: {'model': 'globiom-dev', 'variable': 'en2o', 'unit': 'mtco2e', 'region': 'wld', 'item': 'wht', 'scenario': 'baseline', 'year': '2050', 'value': '164.471459'}
+Invalid data: 'CsvRegionalTimeseriesVerificationService' object has no attribute 'rule'
+Temporary validated file deleted
+Traceback (most recent call last):
+  File "/app/acc_native_jobs/__init__.py", line 42, in wrapper_func
+    func(*args, **kwargs)
+  File "/app/acc_native_jobs/__init__.py", line 65, in verify_csv_regional_timeseries
+    csv_regional_timeseries_verification_service()
+  File "/app/acc_native_jobs/validate_csv_regional_timeseries.py", line 291, in __call__
+    raise ValueError("Invalid data: Data not comply with template rules.")
+ValueError: Invalid data: Data not comply with template rules.

@@ -1,0 +1,23 @@
+Downloading file to validate.
+File download complete
+File validated against rules.
+Temporary downloaded file deleted
+Invalid data error: {'model': 'capri', 'scenario': 'baseline', 'region': 'bih', 'item': 'tot', 'variable': 'calo', 'year': '2050', 'unit': 'kcal/cap/d', 'value': '3697.103416'}
+Invalid data: 'variable'
+Invalid data error: {'model': 'capri', 'scenario': 'baseline', 'region': 'gbr', 'item': 'agr', 'variable': 'adval_equ', 'year': '2050', 'unit': '%', 'value': '19.75562024'}
+Invalid data: 'adval_equ' must be one of dict_keys(['area', 'arir', 'arrf', 'calo', 'cons', 'ctax', 'ech4', 'eco2', 'emis', 'en2o', 'expo', 'fdry', 'feed', 'feef', 'fexo', 'ffsh', 'fnrm', 'food', 'frtn', 'frum', 'gdpt', 'impo', 'land', 'lyld', 'lyxo', 'nett', 'nsif', 'nsim', 'nsin', 'nssu', 'nswi', 'othu', 'popt', 'prod', 'watr', 'xprp', 'xprx', 'yecc', 'yexo', 'yiir', 'yild', 'yirf'])
+Invalid data error: {'model': 'capri', 'scenario': 'baseline', 'region': 'bih', 'item': 'tot', 'variable': 'cali', 'year': '2050', 'unit': 'kcal/cap/d', 'value': '2449.25922'}
+Invalid data: 'cali' must be one of dict_keys(['area', 'arir', 'arrf', 'calo', 'cons', 'ctax', 'ech4', 'eco2', 'emis', 'en2o', 'expo', 'fdry', 'feed', 'feef', 'fexo', 'ffsh', 'fnrm', 'food', 'frtn', 'frum', 'gdpt', 'impo', 'land', 'lyld', 'lyxo', 'nett', 'nsif', 'nsim', 'nsin', 'nssu', 'nswi', 'othu', 'popt', 'prod', 'watr', 'xprp', 'xprx', 'yecc', 'yexo', 'yiir', 'yild', 'yirf'])
+Invalid data error: {'model': 'capri', 'scenario': 'baseline', 'region': 'rks', 'item': 'tot', 'variable': 'cali', 'year': '2050', 'unit': 'kcal/cap/d', 'value': '2568.227518'}
+Invalid data: 'rks' must be one of dict_keys(['abw', 'afg', 'ago', 'aia', 'alb', 'ame', 'and', 'ant', 'anz', 'are', 'arg', 'arm', 'atg', 'aus', 'aut', 'aze', 'bdi', 'bel', 'ben', 'bfa', 'bgd', 'bgr', 'bhr', 'bhs', 'bih', 'blr', 'blz', 'bmu', 'bol', 'bra', 'brb', 'brn', 'btn', 'bwa', 'caf', 'can', 'che', 'chl', 'chn', 'civ', 'cmr', 'cod', 'cog', 'cok', 'col', 'com', 'cpv', 'cri', 'cub', 'cym', 'cyp', 'cze', 'deu', 'dji', 'dma', 'dnk', 'dom', 'dza', 'ecu', 'egy', 'eri', 'esh', 'esp', 'est', 'eth', 'eue', 'eur', 'fin', 'fji', 'flk', 'fra', 'fsm', 'fsu', 'gab', 'gbr', 'geo', 'ggy', 'gha', 'gib', 'gin', 'glp', 'gmb', 'gnb', 'gnq', 'grc', 'grd', 'grl', 'gtm', 'guf', 'guy', 'hkg', 'hnd', 'hrv', 'hti', 'hun', 'idn', 'imn', 'ind', 'irl', 'irn', 'irq', 'isl', 'isr', 'ita', 'jam', 'jey', 'jor', 'jpn', 'kaz', 'ken', 'kgz', 'khm', 'kir', 'kna', 'kor', 'kwt', 'lao', 'lbn', 'lbr', 'lby', 'lca', 'lie', 'lka', 'lso', 'ltu', 'lux', 'lva', 'mac', 'mar', 'mco', 'mda', 'mdg', 'mdv', 'men', 'mex', 'mhl', 'mkd', 'mli', 'mlt', 'mmr', 'mne', 'mng', 'moz', 'mrt', 'msr', 'mus', 'mwi', 'mys', 'nam', 'ncl', 'ner', 'nga', 'nic', 'niu', 'nld', 'nor', 'npl', 'nru', 'nzl', 'oam', 'oas', 'omn', 'osa', 'pak', 'pan', 'per', 'phl', 'plw', 'png', 'pol', 'pri', 'prk', 'prt', 'pry', 'pse', 'pyf', 'qat', 'reu', 'rou', 'rus', 'rwa', 'sas', 'sau', 'sdn', 'sea', 'sen', 'sgp', 'sjm', 'slb', 'sle', 'slv', 'smr', 'som', 'srb', 'ssa', 'stp', 'sur', 'svk', 'svn', 'swe', 'swz', 'syc', 'syr', 'tca', 'tcd', 'tgo', 'tha', 'tjk', 'tkl', 'tkm', 'tls', 'ton', 'tto', 'tun', 'tur', 'tuv', 'twn', 'tza', 'uga', 'ukr', 'ury', 'usa', 'uzb', 'vat', 'vct', 'ven', 'vgb', 'vir', 'vnm', 'vut', 'wld', 'wsm', 'yem', 'zaf', 'zmb', 'zwe'])
+Invalid data error: {'model': '', 'scenario': '', 'region': '', 'item': '', 'variable': '', 'year': '', 'unit': '', 'value': ''}
+Invalid data: could not convert string to float: ''
+Temporary validated file deleted
+Traceback (most recent call last):
+  File "/app/acc_native_jobs/__init__.py", line 42, in wrapper_func
+    func(*args, **kwargs)
+  File "/app/acc_native_jobs/__init__.py", line 65, in verify_csv_regional_timeseries
+    csv_regional_timeseries_verification_service()
+  File "/app/acc_native_jobs/validate_csv_regional_timeseries.py", line 291, in __call__
+    raise ValueError("Invalid data: Data not comply with template rules.")
+ValueError: Invalid data: Data not comply with template rules.
