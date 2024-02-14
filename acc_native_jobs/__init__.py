@@ -1,10 +1,11 @@
 import io
+import os
 import uuid
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
 
-from accli import ACliService
+from accli import AjobCliService
 from acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
 
 from acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
@@ -24,7 +25,7 @@ def capture_log(func):
 
     def wrapper_func(*args, **kwargs):
         job_token = kwargs['job_token']    
-        project_service = ACliService(
+        project_service = AjobCliService(
             job_token,
             cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
@@ -53,7 +54,9 @@ def capture_log(func):
                 is_log_file=True
             )
 
-        #TODO @wrufesh delete temp file
+        # Comment the block below to check log files locally
+        if os.path.exists(log_filepath):
+            os.remove(log_filepath)
         
     return wrapper_func
 

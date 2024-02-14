@@ -5,7 +5,7 @@ import csv
 import uuid
 import itertools
 from typing import Optional
-from accli import ACliService
+from accli import AjobCliService
 from configs.Environment import get_environment_variables
 from jsonschema import validate as jsonschema_validate
 from jsonschema.exceptions import ValidationError, SchemaError
@@ -30,7 +30,7 @@ class CsvRegionalTimeseriesVerificationService():
         cores_required=1,
     ):
         
-        self.project_service = ACliService(
+        self.project_service = AjobCliService(
             job_token,
             cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False

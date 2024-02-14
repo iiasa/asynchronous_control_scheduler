@@ -4,7 +4,7 @@ import json
 import uuid
 import pyam
 from typing import Callable, TypedDict, Iterator
-from accli import ACliService
+from accli import AjobCliService
 from dateutil.parser import parse as parse_date
 from configs.Environment import get_environment_variables
 
@@ -52,7 +52,7 @@ class IamcMergeService:
 
         self.temp_dir = f"background_tasks/temp"
 
-        self.project_service = ACliService(
+        self.project_service = AjobCliService(
             job_token,
             cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False

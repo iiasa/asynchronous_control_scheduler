@@ -6,7 +6,7 @@ import pyam
 from typing import Callable, TypedDict, Iterator
 from configs.Environment import get_environment_variables
 
-from accli import ACliService
+from accli import AjobCliService
 
 env = get_environment_variables()
 
@@ -155,7 +155,7 @@ class IamcVerificationService:
         disk_required=6 * 1024**3,
         cores_required=1,
     ):
-        self.project_service = ACliService(
+        self.project_service = AjobCliService(
             job_token,
             cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
