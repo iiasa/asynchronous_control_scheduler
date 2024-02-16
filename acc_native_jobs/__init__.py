@@ -27,7 +27,7 @@ def capture_log(func):
         job_token = kwargs['job_token']    
         project_service = AjobCliService(
             job_token,
-            cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
 
