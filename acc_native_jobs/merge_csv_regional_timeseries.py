@@ -15,15 +15,22 @@ class CSVRegionalTimeseriesMergeService:
     def __init__(
         self,
         *,
+        filename: str,
         bucket_object_id_list: list[int],
         job_token
     ):
+        
+        if not filename:
+            raise ValueError("Filename for merged file is required.")
+
 
         self.project_service = AjobCliService(
             job_token,
             job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
+
+        self.output_filename = filename
 
         self.bucket_object_id_list = bucket_object_id_list
 
@@ -154,7 +161,7 @@ class CSVRegionalTimeseriesMergeService:
 
         with open(first_downloaded_filepath, "rb") as file_stream:
             uploaded_bucket_object_id = self.project_service.add_filestream_as_job_output(
-                f"Merged_{self.temp_downloaded_filename[:7]}.csv",
+                f"{self.output_filename}.csv",
                 file_stream,
             )
 

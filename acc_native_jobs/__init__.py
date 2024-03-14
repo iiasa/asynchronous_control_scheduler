@@ -13,11 +13,22 @@ from .IamcVerificationService import IamcVerificationService
 
 from configs.Environment import get_environment_variables
 
+from kombu import Queue
+
 env = get_environment_variables()
 
 
 app = Celery('acc_native_jobs', broker=env.CELERY_BROKER_URL)
 
+
+# app.conf.task_default_queue = 'default'
+# app.conf.task_queues = (
+#     Queue('default',    routing_key='task.#'),
+#     Queue('wkube', routing_key='wkube.#'),
+# )
+# app.conf.task_default_exchange = 'tasks'
+# app.conf.task_default_exchange_type = 'topic'
+# app.conf.task_default_routing_key = 'task.default'
 
 
 def capture_log(func):
@@ -73,4 +84,15 @@ def merge_csv_regional_timeseries(*args, **kwargs):
     csv_regional_timeseries_merge_service = CSVRegionalTimeseriesMergeService(*args, **kwargs)
     csv_regional_timeseries_merge_service()
 
-    
+
+
+@app.task(name='dispatch_wkube_task')
+@capture_log
+def dispatch_wkube_task(*args, **kwargs):
+    # check if it right time to dispatch
+        # check if building is required
+            # build it
+        # get image name
+        # create pv(per attached dag) and pvc resource
+    # if job fails, fail all its dependants, also apply it from web events
+    pass

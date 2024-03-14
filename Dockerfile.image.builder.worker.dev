@@ -24,4 +24,4 @@ COPY --chown=nonroot:nonroot ./requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 # SPECIFIC QUEUE HERE
-CMD  cd /app && ~/.local/bin/celery -A acc_native_jobs worker --loglevel=INFO
+CMD  cd /app && ~/.local/bin/celery -A acc_native_jobs worker -Q wkube --loglevel=INFO

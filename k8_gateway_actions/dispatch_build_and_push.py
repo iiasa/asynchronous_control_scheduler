@@ -4,6 +4,8 @@ import enum
 from typing import Union
 from pathlib import Path
 
+from accli import AjobCliService
+
 from configs.Environment import get_environment_variables
 env = get_environment_variables()
 
@@ -137,3 +139,49 @@ class OCIImageBuilder:
 
 
 BuildOCIImage = OCIImageBuilder()
+
+# class WKubeTask():
+#     def __init__(self, serialized_task: dict):
+#         pass
+    
+class DispachWkubeTask():
+
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        job_token = kwargs['job_token']    
+        self.project_service = AjobCliService(
+            job_token,
+            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            verify_cert=False
+        )
+
+    def check_if_the_task_is_ready(self, parent_job_id=None, predecessor_job_id=None):
+        if (not parent_job_id) and (not predecessor_job_id):
+            return True
+        
+        if parent_job_id:
+            pass
+
+        if predecessor_job_id:
+            # check both predessor and its children
+            pass
+    
+    def get_or_create_cache_pv(self):
+        """Single node scrach space. 
+        Will also be used for data repository cache
+        """
+        pass
+
+    def attach_pvc_to_job(self):
+        """
+        Attach only when it is child or has child. 
+        If it is standalone task than no pvc is required.
+        """
+        pass
+
+    def override_cmd_ingest_log(self):
+        pass
+
+    def __call__(self):
+        pass
