@@ -237,8 +237,8 @@ class DispachWkubeTask():
 
         
 
-        service = api.create(body=service_manifest, namespace=env.WKUBE_K8_NAMESPACE)
-        service_created = api.get(name=name, namespace=env.WKUBE_K8_NAMESPACE)
+        # service = api.create(body=service_manifest, namespace=env.WKUBE_K8_NAMESPACE)
+        # service_created = api.get(name=name, namespace=env.WKUBE_K8_NAMESPACE)
         pass
 
     def attach_pvc_to_job(self):
@@ -252,4 +252,5 @@ class DispachWkubeTask():
         pass
 
     def __call__(self):
-        pass
+        self.kwargs['docker_image'] = self.get_or_create_job_image()
+

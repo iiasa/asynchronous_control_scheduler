@@ -9,6 +9,7 @@ from accli import AjobCliService
 from acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
 
 from acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
+from k8_gateway_actions.dispatch_build_and_push import DispachWkubeTask
 from .IamcVerificationService import IamcVerificationService
 
 from acc_native_jobs import celeryconfig
@@ -62,6 +63,46 @@ def capture_log(func):
         
     return wrapper_func
 
+def wkube_capture_log(func):
+    """Capture stdout and stderr to accelerator data repo"""
+
+    def wrapper_func(*args, **kwargs):
+        job_token = kwargs['job_token']    
+        project_service = AjobCliService(
+            job_token,
+            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            verify_cert=False
+        )
+
+        log_filename = f'{uuid.uuid4().hex}.log'
+        log_filepath = f'tmp_files/{log_filename}'
+
+        project_service.update_job_status("PREPARING")
+
+        with open(log_filepath, 'w+') as log_stream:
+
+            with redirect_stdout(log_stream):
+                try:
+                    func(*args, **kwargs)
+                except Exception as err:
+                    project_service.update_job_status("ERROR")
+                    error_message = ''.join(traceback.format_exc())
+                    log_stream.write(error_message)
+
+        with open(log_filepath, "rb") as file_stream:
+            bucket_object_id = project_service.add_filestream_as_job_output(
+                log_filename,
+                file_stream,
+                is_log_file=True
+            )
+
+        # Comment the block below to check log files locally
+        if os.path.exists(log_filepath):
+            os.remove(log_filepath)
+        
+    return wrapper_func
+
+
 
 @app.task(name='verify_csv_regional_timeseries')
 @capture_log
@@ -78,15 +119,7 @@ def merge_csv_regional_timeseries(*args, **kwargs):
 
 
 @app.task(name='dispatch_wkube_task')
-@capture_log
+@wkube_capture_log
 def dispatch_wkube_task(*args, **kwargs):
-    # check if it right time to dispatch
-        # check if building is required
-            # build it
-        # get image name
-        # create pv(per attached dag) and pvc resource
-    # if job fails, fail all its dependants, also apply it from web events
-    print('#####################################################################')
-    print(args)
-    print(kwargs)
-    pass
+    dispatch = DispachWkubeTask(*args, **kwargs)
+    dispatch()

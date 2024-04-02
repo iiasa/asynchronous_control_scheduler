@@ -9,19 +9,25 @@ RUN apt update && \
     adduser --uid $UID --gid $GID --disabled-password --gecos "" nonroot && \
     echo 'nonroot ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
-RUN apt install -y buildah
+RUN apt install -y buildah skopeo
 
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
 
 USER nonroot
 
-WORKDIR /app
+RUN mkdir /home/nonroot/app
 
-RUN chmod -R 755 /app
+WORKDIR /home/nonroot/app
 
-COPY --chown=nonroot:nonroot ./requirements.txt /app/requirements.txt
+# RUN chown -R nonroot:nonroot /home/nonroot/app
 
-RUN pip install -r /app/requirements.txt
+RUN chmod -R 755 /home/nonroot/app
+
+COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.txt
+
+RUN pip install -r /home/nonroot/app/requirements.txt
+
+# CMD sleep infinity
 
 # SPECIFIC QUEUE HERE
-CMD  cd /app && ~/.local/bin/celery -A acc_native_jobs worker -Q wkube --loglevel=INFO
+CMD  sudo chown -R nonroot:nonroot /home/nonroot/app && cd ~/app && ~/.local/bin/celery -A acc_native_jobs worker -Q wkube --loglevel=INFO
