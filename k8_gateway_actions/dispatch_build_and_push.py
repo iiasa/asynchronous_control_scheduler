@@ -1,12 +1,17 @@
 import re
+import base64
+import json
 import subprocess
 import enum
 from typing import Union
 from pathlib import Path
+from kubernetes import client, config, dynamic
+from kubernetes.client import api_client
 
 from accli import AjobCliService
 
 from configs.Environment import get_environment_variables
+
 env = get_environment_variables()
 
 class BaseStack(str, enum.Enum):
@@ -25,13 +30,22 @@ class OCIImageBuilder:
             git_repo, 
             version, 
             dockerfile='Dockerfile', 
-            base_stack: Union[BaseStack, None]=None
+            base_stack: Union[BaseStack, None]=None,
+            force_build=False
         ):
         self.git_repo = git_repo
         self.version = version
         self.dockerfile = dockerfile
         self.base_stack = base_stack
+        self.force_build = force_build
         
+        if self.tag_exists() and (not self.force_build):
+            print(
+                f"WKube Builder: Skipping image build as image for given repo and"
+                f" tag already exists, force update is turned off."
+            )
+            return self.get_image_tag()
+
         try:
             self.prepare_files()
             self.build()
@@ -39,9 +53,23 @@ class OCIImageBuilder:
             self.clean_up()
         finally:
             self.clear_site()
-            pass
+        
+        return self.get_image_tag()
             
     
+    def tag_exists(self):
+        command = [
+            "skopeo", "inspect", "--creds", 
+            f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
+            f"docker://registry.iiasa.ac.at/accelerator/{self.git_repo}:{self.version}"
+        ]
+
+        process = subprocess.Popen(command)
+        process.wait()
+
+        exit_code = process.returncode
+
+        return exit_code == 0
 
     def prepare_files(self):
         # Step 1. Clone git_repo with version.
@@ -149,6 +177,7 @@ class DispachWkubeTask():
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+        
         job_token = kwargs['job_token']    
         self.project_service = AjobCliService(
             job_token,
@@ -156,21 +185,60 @@ class DispachWkubeTask():
             verify_cert=False
         )
 
-    def check_if_the_task_is_ready(self, parent_job_id=None, predecessor_job_id=None):
-        if (not parent_job_id) and (not predecessor_job_id):
-            return True
-        
-        if parent_job_id:
-            pass
+        self.image_builder =  OCIImageBuilder()
 
-        if predecessor_job_id:
-            # check both predessor and its children
-            pass
+    def get_service_api(self):
+        api_clinet = dynamic.DynamicClient(
+            api_client.ApiClient(configuration=config.load_kube_config_from_dict(
+                config_dict=json.loads(
+                    base64.b64decode(
+                        env.WKUBE_SECRET_JSON_B64.encode()
+                    )
+                )
+            ))
+        )
+
+        return api_client
     
-    def get_or_create_cache_pv(self):
+    def get_or_create_job_image(self):
+        if self.kwargs['docker_image']:
+            return self.kwargs['docker_image']
+
+        return self.image_builder(
+            self.kwargs['repo_url'],
+            self.kwargs['repo_branch'],
+            dockerfile=self.kwargs['docker_filename'],
+            base_stack=self.kwargs['base_stack'],
+            force_build=self.kwargs['force_build']
+        )
+    
+    def get_or_create_cache_pvc(self):
+        # Yes it is get or create because parent might already has created.
         """Single node scrach space. 
         Will also be used for data repository cache
         """
+
+        pvc_manifest = dict(
+            apiVersion='v1',
+            kind='PersistentVolumeClaim',
+            metadata=dict(
+                name='my-pvc'
+            ),
+            spec=dict(
+                storageClassName='your-storage-class',
+                accessModes=['ReadWriteOnce'],
+                resources=dict(
+                    requests=dict(
+                        storage='1Gi'
+                    )
+                )
+            )
+        )
+
+        
+
+        service = api.create(body=service_manifest, namespace=env.WKUBE_K8_NAMESPACE)
+        service_created = api.get(name=name, namespace=env.WKUBE_K8_NAMESPACE)
         pass
 
     def attach_pvc_to_job(self):

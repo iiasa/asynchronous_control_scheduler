@@ -9,6 +9,8 @@ class AppSetting():
         self.IMAGE_REGISTRY_URL: str = os.environ.get('IMAGE_REGISTRY_URL')
         self.IMAGE_REGISTRY_USER: str = os.environ.get('IMAGE_REGISTRY_USER')
         self.IMAGE_REGISTRY_PASSWORD: str = os.environ.get('IMAGE_REGISTRY_PASSWORD')
+        self.WKUBE_SECRET_JSON_B64: str = os.environ.get('WKUBE_SECRET_JSON_B64')
+        self.WKUBE_K8_NAMESPACE: str = os.environ.get('WKUBE_K8_NAMESPACE', "wkube")
 
 @lru_cache
 def get_environment_variables():
