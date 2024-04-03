@@ -81,13 +81,13 @@ def wkube_capture_log(func):
 
         with open(log_filepath, 'w+') as log_stream:
 
-            with redirect_stdout(log_stream):
+            with redirect_stdout(log_stream), redirect_stderr(log_stream):
                 try:
                     func(*args, **kwargs)
                 except Exception as err:
                     project_service.update_job_status("ERROR")
-                    error_message = ''.join(traceback.format_exc())
-                    log_stream.write(error_message)
+                    # error_message = ''.join(traceback.format_exc())
+                    # log_stream.write(error_message)
 
         with open(log_filepath, "rb") as file_stream:
             bucket_object_id = project_service.add_filestream_as_job_output(
@@ -123,3 +123,4 @@ def merge_csv_regional_timeseries(*args, **kwargs):
 def dispatch_wkube_task(*args, **kwargs):
     dispatch = DispachWkubeTask(*args, **kwargs)
     dispatch()
+    raise ValueError("To check if it is logged correctly")

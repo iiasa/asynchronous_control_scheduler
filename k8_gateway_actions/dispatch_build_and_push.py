@@ -3,6 +3,7 @@ import base64
 import json
 import subprocess
 import enum
+import sys
 from typing import Union
 from pathlib import Path
 from kubernetes import client, config, dynamic
@@ -61,10 +62,10 @@ class OCIImageBuilder:
         command = [
             "skopeo", "inspect", "--creds", 
             f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
-            f"docker://registry.iiasa.ac.at/accelerator/{self.git_repo}:{self.version}"
+            f"docker://{self.get_image_tag()}"
         ]
 
-        process = subprocess.Popen(command)
+        process = subprocess.Popen(command, stdout=sys.stdout)
         process.wait()
 
         exit_code = process.returncode
@@ -72,17 +73,17 @@ class OCIImageBuilder:
         return exit_code == 0
 
     def prepare_files(self):
-        # Step 1. Clone git_repo with version.
-        subprocess.run(
-            [
+        
+        command = [
                 "git", "clone", 
                 "--depth", "1", 
                 "--branch", self.version, 
                 f"{self.git_repo}",
                 self.IMAGE_BUILDING_SITE
-            ],
-            check=True
-        )
+            ]
+
+        process = subprocess.Popen(command, stdout=sys.stdout)
+        process.wait()
     
         # Step 2. Either dockerfile should be present or base_stack should be choosen
         if not (self.dockerfile or self.base_stack):
@@ -115,55 +116,61 @@ class OCIImageBuilder:
 
     
     def build(self):
-        subprocess.run(
-            [
+        
+        command = [
                 "buildah", "bud", 
                 '-t',
                 self.get_image_tag(),
                 "-f", f"{self.IMAGE_BUILDING_SITE}/{self.dockerfile}",
                 self.IMAGE_BUILDING_SITE
-            ],
-            check=True
-        )
+            ]
+
+        process = subprocess.Popen(command, stdout=sys.stdout)
+        process.wait()
 
     def push_to_registry(self):
-        subprocess.run(
-            [
+
+        login_command = [
                "buildah", 
                "login", 
                "--username", env.IMAGE_REGISTRY_USER, 
                "--password", env.IMAGE_REGISTRY_PASSWORD,
                env.IMAGE_REGISTRY_URL
-            ],
-            check=True
-        )
+            ]
+
+        login_process = subprocess.Popen(login_command, stdout=sys.stdout)
+        login_process.wait()
 
 
-        subprocess.run(
-            ["buildah", "push", self.get_image_tag()],
-            check=True
-        )
+        push_command = ["buildah", "push", self.get_image_tag()]
+
+        push_process = subprocess.Popen(push_command, stdout=sys.stdout)
+        push_process.wait()
 
     def clean_up(self):
-        subprocess.run([
+        
+        command = [
             "buildah", "rmi", self.get_image_tag()
-        ], check=True)
+        ]
+
+        process = subprocess.Popen(command, stdout=sys.stdout)
+        process.wait()
     
     def clear_site(self):
 
-        subprocess.run(
-            [
+        delete_command = [
                 "rm", "-rf", self.IMAGE_BUILDING_SITE
-            ],
-            check=True
-        )
+            ]
 
-        subprocess.run(
-            [
+        delete_process = subprocess.Popen(delete_command, stdout=sys.stdout)
+        delete_process.wait()
+
+        make_command = [
                 "mkdir", self.IMAGE_BUILDING_SITE
-            ],
-            check=True
-        )
+            ]
+
+        make_process = subprocess.Popen(make_command, stdout=sys.stdout)
+        make_process.wait()
 
 
 BuildOCIImage = OCIImageBuilder()
@@ -188,7 +195,7 @@ class DispachWkubeTask():
         self.image_builder =  OCIImageBuilder()
 
     def get_service_api(self):
-        api_clinet = dynamic.DynamicClient(
+        api_client = dynamic.DynamicClient(
             api_client.ApiClient(configuration=config.load_kube_config_from_dict(
                 config_dict=json.loads(
                     base64.b64decode(
