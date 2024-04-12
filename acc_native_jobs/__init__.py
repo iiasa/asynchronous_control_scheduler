@@ -1,7 +1,10 @@
 import io
 import os
+import time
 import uuid
 import traceback
+import asyncio
+import threading
 from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
 
@@ -23,6 +26,54 @@ app = Celery('acc_native_jobs')
 app.config_from_object(celeryconfig)
 
 
+class RemoteStreamWriter(io.TextIOBase):
+    def __init__(self, project_service: AjobCliService, chunk_size=124):
+        super().__init__()
+        self.project_service = project_service
+        self.buffer = ''
+        self.chunk_size = chunk_size
+        self.threads = []
+        self.log_counter = 0
+       
+
+    def write(self, data):
+        self.buffer += data
+        while len(self.buffer) >= self.chunk_size:
+            chunk, self.buffer = self.buffer[:self.chunk_size], self.buffer[self.chunk_size:]
+            filename = f"celery{self.log_counter}.log"
+            self.log_counter += 1
+            t = threading.Thread(target=self._send_chunk, args=(chunk, filename))
+            t.start()
+            self.threads.append(t)
+
+    def flush(self):
+        if self.buffer:
+            chunk = self.buffer[:]
+            filename = f"celery{self.log_counter}.log"
+            self.log_counter += 1
+            t = threading.Thread(target=self._send_chunk, args=(chunk, filename))
+            t.start()
+            self.threads.append(t)
+            self.buffer = ''
+
+    def _send_chunk(self, chunk, filename):
+        # print(f"Sending {filename}")
+        self._send_request(chunk, filename)
+        # print(f"{filename} sent")
+        
+    def _send_request(self, chunk, filename):
+        self.project_service.add_log_file(
+                chunk.encode(),
+                filename,
+                
+            )
+
+    def close(self):
+        self.flush()
+        for thread in self.threads:
+            thread.join()
+        
+
 def capture_log(func):
     """Capture stdout and stderr to accelerator data repo"""
 
@@ -30,36 +81,37 @@ def capture_log(func):
         job_token = kwargs['job_token']    
         project_service = AjobCliService(
             job_token,
-            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            server_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
 
         project_service.update_job_status("PROCESSING")
 
-        log_filename = f'{uuid.uuid4().hex}.log'
-        log_filepath = f'tmp_files/{log_filename}'
+        log_stream = RemoteStreamWriter(project_service, chunk_size=1024)
 
-        with open(log_filepath, 'w+') as log_stream:
+        has_error = False
 
-            with redirect_stdout(log_stream):
-                try:
-                    func(*args, **kwargs)
-                    project_service.update_job_status("DONE")
-                except Exception as err:
-                    project_service.update_job_status("ERROR")
-                    error_message = ''.join(traceback.format_exc())
-                    log_stream.write(error_message)
+        with redirect_stdout(log_stream), redirect_stderr(log_stream):
+            try:
+                func(*args, **kwargs)
+                has_error = False
+                
+            except Exception as err:
+                
+                has_error = True
+                error_message = ''.join(traceback.format_exc())
+                log_stream.write(error_message)
 
-        with open(log_filepath, "rb") as file_stream:
-            bucket_object_id = project_service.add_filestream_as_job_output(
-                log_filename,
-                file_stream,
-                is_log_file=True
-            )
+        
+        log_stream.close()
 
-        # Comment the block below to check log files locally
-        if os.path.exists(log_filepath):
-            os.remove(log_filepath)
+        if not has_error:
+            project_service.update_job_status("DONE")
+        else:
+            project_service.update_job_status("ERROR")
+
+        
+        
         
     return wrapper_func
 
@@ -67,38 +119,35 @@ def wkube_capture_log(func):
     """Capture stdout and stderr to accelerator data repo"""
 
     def wrapper_func(*args, **kwargs):
+        
         job_token = kwargs['job_token']    
+        
         project_service = AjobCliService(
             job_token,
-            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            server_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
 
-        log_filename = f'{uuid.uuid4().hex}.log'
-        log_filepath = f'tmp_files/{log_filename}'
-
         project_service.update_job_status("PREPARING")
 
-        with open(log_filepath, 'w+') as log_stream:
+        log_stream = RemoteStreamWriter(project_service, chunk_size=1024)
 
-            with redirect_stdout(log_stream), redirect_stderr(log_stream):
-                try:
-                    func(*args, **kwargs)
-                except Exception as err:
-                    project_service.update_job_status("ERROR")
-                    # error_message = ''.join(traceback.format_exc())
-                    # log_stream.write(error_message)
+        has_error = False
 
-        with open(log_filepath, "rb") as file_stream:
-            bucket_object_id = project_service.add_filestream_as_job_output(
-                log_filename,
-                file_stream,
-                is_log_file=True
-            )
+        with redirect_stdout(log_stream), redirect_stderr(log_stream):
+            try:
+                func(*args, **kwargs)
+                
+            except Exception as err:
+                has_error = True
+                error_message = ''.join(traceback.format_exc())
+                log_stream.write(error_message)
 
-        # Comment the block below to check log files locally
-        if os.path.exists(log_filepath):
-            os.remove(log_filepath)
+        log_stream.close()
+
+        if has_error:
+            project_service.update_job_status("ERROR")
+        
         
     return wrapper_func
 
@@ -121,6 +170,7 @@ def merge_csv_regional_timeseries(*args, **kwargs):
 @app.task(name='dispatch_wkube_task')
 @wkube_capture_log
 def dispatch_wkube_task(*args, **kwargs):
+    print("builder")
     dispatch = DispachWkubeTask(*args, **kwargs)
     dispatch()
-    raise ValueError("To check if it is logged correctly")
+    

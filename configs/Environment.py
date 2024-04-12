@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, get_type_hints
 from functools import lru_cache
 
 class AppSetting():
@@ -14,4 +14,19 @@ class AppSetting():
 
 @lru_cache
 def get_environment_variables():
-    return AppSetting()
+    settings = AppSetting()
+
+    annotations = get_type_hints(settings.__init__)
+
+    for key, value_type in annotations.items():
+        if value_type == bool:
+            value = getattr(settings, key)
+            if type(value) == str:
+                if value == 'True':
+                    setattr(settings, key, True)
+                elif value == 'False':
+                    setattr(settings, key, False)
+                else:
+                    raise ValueError(f"Value does not match annotation of AppSetting: {key}")
+
+    return settings

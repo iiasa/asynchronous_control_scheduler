@@ -54,7 +54,7 @@ class IamcMergeService:
 
         self.project_service = AjobCliService(
             job_token,
-            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            server_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
 

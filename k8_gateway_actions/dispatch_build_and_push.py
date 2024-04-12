@@ -9,15 +9,52 @@ from pathlib import Path
 from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
 
+from kubernetes.dynamic.exceptions import NotFoundError
+
 from accli import AjobCliService
 
 from configs.Environment import get_environment_variables
 
 env = get_environment_variables()
 
+def escape_character(input_string, char_to_escape):
+    """
+    Escapes occurrences of a given character within a string.
+
+    Parameters:
+    input_string (str): The input string.
+    char_to_escape (str): The character to escape.
+
+    Returns:
+    str: The string with the specified character escaped.
+    """
+    # Escape the given character
+    escaped_char = '\\' + char_to_escape
+    
+    # Use built-in string replace function to escape the character
+    escaped_string = input_string.replace(char_to_escape, escaped_char)
+
+    return escaped_string
+
 class BaseStack(str, enum.Enum):
     PYTHON3_7 = 'PYTHON3_7'
     GAMS_W_R = 'GAMS_W_R'
+
+def exec_command(command):
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # Read and print the output
+    for line in process.stdout:
+        print(line.decode().strip())
+
+    # Read and print the error
+    for line in process.stderr:
+        print(line.decode().strip())
+
+    # Optionally, you can wait for the process to finish
+    process.wait()
+
+    return process.returncode
 
 class OCIImageBuilder:
     """Build image based on Dockerfile in git repo or
@@ -65,10 +102,7 @@ class OCIImageBuilder:
             f"docker://{self.get_image_tag()}"
         ]
 
-        process = subprocess.Popen(command, stdout=sys.stdout)
-        process.wait()
-
-        exit_code = process.returncode
+        exit_code = exec_command(command)
 
         return exit_code == 0
 
@@ -82,8 +116,7 @@ class OCIImageBuilder:
                 self.IMAGE_BUILDING_SITE
             ]
 
-        process = subprocess.Popen(command, stdout=sys.stdout)
-        process.wait()
+        exec_command(command)
     
         # Step 2. Either dockerfile should be present or base_stack should be choosen
         if not (self.dockerfile or self.base_stack):
@@ -125,8 +158,7 @@ class OCIImageBuilder:
                 self.IMAGE_BUILDING_SITE
             ]
 
-        process = subprocess.Popen(command, stdout=sys.stdout)
-        process.wait()
+        exec_command(command)
 
     def push_to_registry(self):
 
@@ -138,14 +170,11 @@ class OCIImageBuilder:
                env.IMAGE_REGISTRY_URL
             ]
 
-        login_process = subprocess.Popen(login_command, stdout=sys.stdout)
-        login_process.wait()
-
+        exec_command(login_command)
 
         push_command = ["buildah", "push", self.get_image_tag()]
 
-        push_process = subprocess.Popen(push_command, stdout=sys.stdout)
-        push_process.wait()
+        exec_command(push_command)
 
     def clean_up(self):
         
@@ -153,8 +182,7 @@ class OCIImageBuilder:
             "buildah", "rmi", self.get_image_tag()
         ]
 
-        process = subprocess.Popen(command, stdout=sys.stdout)
-        process.wait()
+        exec_command(command)
     
     def clear_site(self):
 
@@ -162,15 +190,13 @@ class OCIImageBuilder:
                 "rm", "-rf", self.IMAGE_BUILDING_SITE
             ]
 
-        delete_process = subprocess.Popen(delete_command, stdout=sys.stdout)
-        delete_process.wait()
+        exec_command(delete_command)
 
         make_command = [
                 "mkdir", self.IMAGE_BUILDING_SITE
             ]
 
-        make_process = subprocess.Popen(make_command, stdout=sys.stdout)
-        make_process.wait()
+        exec_command(make_command)
 
 
 BuildOCIImage = OCIImageBuilder()
@@ -188,24 +214,46 @@ class DispachWkubeTask():
         job_token = kwargs['job_token']    
         self.project_service = AjobCliService(
             job_token,
-            job_cli_base_url=env.ACCELERATOR_CLI_BASE_URL,
+            server_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
+
+        self.api_cli = self.get_service_api()
 
         self.image_builder =  OCIImageBuilder()
 
     def get_service_api(self):
-        api_client = dynamic.DynamicClient(
-            api_client.ApiClient(configuration=config.load_kube_config_from_dict(
-                config_dict=json.loads(
-                    base64.b64decode(
-                        env.WKUBE_SECRET_JSON_B64.encode()
-                    )
+        
+        config.load_kube_config_from_dict(
+            config_dict=json.loads(
+                base64.b64decode(
+                    env.WKUBE_SECRET_JSON_B64.encode()
                 )
-            ))
+            )
         )
 
-        return api_client
+        kube_config = client.Configuration().get_default_copy()
+
+        kube_config.verify_ssl = False
+
+        client.Configuration.set_default(kube_config)
+        
+        api_cli = dynamic.DynamicClient(
+            api_client.ApiClient()
+        )
+
+        return api_cli
+
+        # Load kubeconfig from base64 encoded JSON string
+        # kubeconfig_data = base64.b64decode(env.WKUBE_SECRET_JSON_B64.encode()).decode('utf-8')
+        # config_dict = json.loads(kubeconfig_data)
+        # config.load_kube_config_from_dict(config_dict)
+
+        # client.Configuration.ssl_ca_cert = './cert.pem'
+        # Create dynamic client
+        # api_cli = dynamic.DynamicClient(api_client.ApiClient())
+
+        # return api_cli
     
     def get_or_create_job_image(self):
         if self.kwargs['docker_image']:
@@ -219,45 +267,197 @@ class DispachWkubeTask():
             force_build=self.kwargs['force_build']
         )
     
-    def get_or_create_cache_pvc(self):
-        # Yes it is get or create because parent might already has created.
-        """Single node scrach space. 
-        Will also be used for data repository cache
-        """
+    def pvc_exists(self):
 
-        pvc_manifest = dict(
-            apiVersion='v1',
-            kind='PersistentVolumeClaim',
-            metadata=dict(
-                name='my-pvc'
-            ),
-            spec=dict(
-                storageClassName='your-storage-class',
-                accessModes=['ReadWriteOnce'],
-                resources=dict(
-                    requests=dict(
-                        storage='1Gi'
-                    )
-                )
-            )
-        )
-
+        try:
         
+            pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim').get(
+                namespace=env.WKUBE_K8_NAMESPACE, name=self.kwargs['pvc_id'])
+            if pvc:
+                print(f"PVC {self.kwargs['pvc_id']} exists in namespace {env.WKUBE_K8_NAMESPACE}.")
+                return True
+            else:
+                print(f"PVC {self.kwargs['pvc_id']} does not exist in namespace {env.WKUBE_K8_NAMESPACE}.")
+                return False
+        except NotFoundError:
+            return False
+    
+    
+    def get_or_create_cache_pvc(self):
+       
+        if self.pvc_exists():
+            return
 
-        # service = api.create(body=service_manifest, namespace=env.WKUBE_K8_NAMESPACE)
-        # service_created = api.get(name=name, namespace=env.WKUBE_K8_NAMESPACE)
-        pass
+        pvc_manifest = {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": self.kwargs['pvc_id']
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": self.kwargs.get('required_storage_workflow', 1024 * 1024)
+                    }
+                }
+            }
+        }
 
-    def attach_pvc_to_job(self):
-        """
-        Attach only when it is child or has child. 
-        If it is standalone task than no pvc is required.
-        """
-        pass
+        # Create the PVC
+        v1_pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
+        created_pvc = v1_pvc.create(namespace=env.WKUBE_K8_NAMESPACE, body=pvc_manifest)
 
-    def override_cmd_ingest_log(self):
-        pass
+        print("Created PVC:", created_pvc)
+
+    
 
     def __call__(self):
         self.kwargs['docker_image'] = self.get_or_create_job_image()
 
+        self.get_or_create_cache_pvc()
+        self.launch_k8_job()
+
+    
+    def launch_k8_job(self):
+        # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
+
+        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.2-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        
+        command = ["/bin/sh", "-c", shell_script]
+
+        job_name = f"{self.kwargs['job_id']}-{self.kwargs['pvc_id']}"
+        
+        # Specify the image pull secret
+        image_pull_secrets = ["iiasaregcred"]  # Replace "my-secret" with the name of your secret
+
+        # Specify the environment variables
+        env_vars = [
+            {"name": "JOB_TOKEN", "value": self.kwargs['job_token']},
+            {"name": "GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}/"}
+        ]
+
+        # Specify the node name
+        node_name = self.kwargs.get('node_id', None)  # Replace "my-node" with the name of the node you want to schedule the Job on
+
+        # Specify the pod affinity based on the job label and node name
+        # pod_affinity = {
+        #     "requiredDuringSchedulingIgnoredDuringExecution": [
+        #         {
+        #             "labelSelector": {
+        #                 "matchExpressions": [
+        #                     {
+        #                         "key": self.kwargs["pvc_id"],
+        #                         "operator": "In",
+        #                         "values": [job_name]
+        #                     }
+        #                 ]
+        #             },
+        #             "topologyKey": "kubernetes.io/hostname"
+        #         }
+        #     ]
+        # }
+        
+        pod_affinity = {}
+
+        if node_name:
+            pod_affinity["nodeAffinity"] = {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                    "nodeSelectorTerms": [
+                        {
+                            "matchExpressions": [
+                                {
+                                    "key": "kubernetes.io/hostname",
+                                    "operator": "In",
+                                    "values": [node_name]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+
+        # Specify the Job definition with resource limits, PVC mount, image pull secrets, environment variables, and pod affinity
+        job_manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+                "name": job_name
+            },
+            "spec": {
+                "activeDeadlineSeconds": self.kwargs['timeout'],
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "app": job_name
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": job_name,
+                                "image": self.kwargs['docker_image'],
+                                "command": command,
+                                "resources": {
+                                    "limits": {
+                                        "memory": self.kwargs['required_ram'],
+                                        "cpu": self.kwargs['required_cores'],
+                                        "ephemeral-storage": self.kwargs['required_storage_local']
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": self.kwargs['pvc_id'],
+                                        "mountPath": "/mnt/data"
+                                    }
+                                ],
+                                
+                                "env": env_vars
+                            }
+                        ],
+                        "volumes": [
+                            {
+                                "name": self.kwargs['pvc_id'],
+                                "persistentVolumeClaim": {
+                                    "claimName": self.kwargs['pvc_id']  # Name of the PVC to mount
+                                }
+                            }
+                        ],
+                        "affinity": {
+                            "podAffinity": pod_affinity
+                        },
+                        "restartPolicy": "Never",
+                        "imagePullSecrets": [{"name": secret} for secret in image_pull_secrets],
+                    }
+                }
+            }
+        }
+
+        # Create the Job
+        batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
+        created_job = batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
+
+        print("Created Job:", created_job)
+
+
+        # try:
+        #     # Create the Pod
+        #     api_instance.create_namespaced_pod(namespace="default", body=pod_manifest)
+        #     print("Pod created successfully!")
+            
+        #     # Wait for the pod to be in a non-pending state
+        #     while True:
+        #         time.sleep(1)
+        #         pod = api_instance.read_namespaced_pod(name="test-pod", namespace="default")
+        #         if pod.status.phase != "Pending":
+        #             break
+                
+        #     # Check if pod creation encountered any issues
+        #     if pod.status.phase == "Failed":
+        #         print("Pod creation failed:", pod.status.message)
+        #     else:
+        #         print("Pod is ready to execute.")
+        # except ApiException as e:
+        #     print("Exception when calling CoreV1Api->create_namespaced_pod:", e)
