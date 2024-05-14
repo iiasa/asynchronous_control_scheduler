@@ -102,6 +102,9 @@ class CsvRegionalTimeseriesVerificationService():
         self.time_dimension = self.rules['root_schema_declarations']['time_dimension']
         self.value_dimension = self.rules['root_schema_declarations']['value_dimension']
 
+        self.unit_dimension = self.rules['root_schema_declarations']['unit_dimension']
+        self.variable_dimension = self.rules['root_schema_declarations']['variable_dimension']
+
         self.region_dimension = self.rules['root_schema_declarations']['region_dimension']
 
 
@@ -124,6 +127,9 @@ class CsvRegionalTimeseriesVerificationService():
         
 
         for key in self.rules['root']['properties']:
+
+            if key in [self.variable_dimension, self.unit_dimension]:
+                continue
 
             if key == self.time_dimension.lower():
                 if float(row[key]) < self.validation_metadata[
@@ -154,11 +160,19 @@ class CsvRegionalTimeseriesVerificationService():
                 
         
             if self.validation_metadata.get(key):
-                if len(self.validation_metadata[key]) <= 200: #limit harvest
+                if len(self.validation_metadata[key]) <= 1000: #limit harvest
                     self.validation_metadata[key].add(row[key])
 
             else:
                 self.validation_metadata[key] = set([row[key]])
+
+        if self.validation_metadata.get('variable-unit'):
+            if len(self.validation_metadata['variable-unit']) <= 1000: #limit harvest
+                    self.validation_metadata['variable-unit'].add((row[self.variable_dimension], row[self.unit_dimension]))
+        else:
+            self.validation_metadata['variable-unit'] = set([
+                (row[self.variable_dimension], row[self.unit_dimension])
+            ])
 
 
         extra_template_validators = self.rules.get('template_validators')
