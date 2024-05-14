@@ -104,8 +104,6 @@ class CsvRegionalTimeseriesVerificationService():
 
         self.region_dimension = self.rules['root_schema_declarations']['region_dimension']
 
-        # specific to regional timeseries
-        self.region_layer_dimension = self.rules['root_schema_declarations']['region_layer_map_key']
 
     def validate_row_data(self, row):
         try:
@@ -215,7 +213,6 @@ class CsvRegionalTimeseriesVerificationService():
 
                 try:
                     row = self.validate_row_data(row)
-                    row[self.region_layer_dimension] = self.rules[f'map_{self.region_dimension}'][row[self.region_dimension]]['region_layer']
                 except Exception as err:
                     if len(self.errors) <= 50:
                         self.errors[str(err)] = str(row)
@@ -234,15 +231,15 @@ class CsvRegionalTimeseriesVerificationService():
 
             if final_csv_column_order:
                 for item in final_csv_column_order:
-                    if item not in [self.time_dimension, self.value_dimension, self.region_layer_dimension]:
+                    if item not in [self.time_dimension, self.value_dimension]:
                         self.validated_headers.append(item)
             
             for item in headers:
-                used_headers = self.validated_headers + [self.time_dimension, self.value_dimension, self.region_layer_dimension]
+                used_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
                 if item not in used_headers:
                     self.validated_headers.append(item)
             
-            self.validated_headers = self.validated_headers + [self.time_dimension, self.value_dimension, self.region_layer_dimension]
+            self.validated_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
             # End final order preparation
 
             
@@ -291,7 +288,7 @@ class CsvRegionalTimeseriesVerificationService():
             raise ValueError("Invalid data: Data not comply with template rules.")
 
 
-        sort_order_option_text = ' '.join([f"-k{i+1},{i+1}" for i in range(len(self.validated_headers[:-1]))])
+        sort_order_option_text = ' '.join([f"-k{i+1},{i+1}{'n' if self.validated_headers[i] == self.time_dimension else ''}" for i in range(len(self.validated_headers[:-1]))])
 
         sort_command = f"head -n1 {self.temp_validated_filepath} >> {self.temp_sorted_filepath} && tail -n+2 {self.temp_validated_filepath} | sort -t',' {sort_order_option_text} >> {self.temp_sorted_filepath}"
 
