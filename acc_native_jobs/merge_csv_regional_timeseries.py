@@ -123,6 +123,14 @@ class CSVRegionalTimeseriesMergeService:
                     
                     if next_validation_metadata[key]['max_value'] > first_validation_metadata[key]['max_value']:
                         first_validation_metadata[key]['max_value'] = next_validation_metadata[key]['max_value']
+                elif key == 'variable-unit':
+                    first_merge_candidate = first_validation_metadata[key]
+                    next_merge_candidate = next_validation_metadata[key]
+
+                    first_merge_candidate = {tuple(lst) for lst in first_merge_candidate}
+                    next_merge_candidate = {tuple(lst) for lst in next_merge_candidate}
+
+                    first_validation_metadata[key] = first_merge_candidate.union(next_merge_candidate)
                 else:
                     first_validation_metadata[key] = set(first_validation_metadata[key]).union(set(next_validation_metadata[key]))
         
