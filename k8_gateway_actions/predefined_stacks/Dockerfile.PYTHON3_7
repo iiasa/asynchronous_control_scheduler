@@ -1,0 +1,11 @@
+# This inbuilt stack expects requirements.txt file to be present in root folder
+
+FROM python:3.7
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install -r /app/requirements.txt
+
+CMD echo "This is default command output of predefined stack named PYTHON3_7"

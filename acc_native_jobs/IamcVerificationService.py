@@ -2,7 +2,6 @@ import os
 import json
 import uuid
 import logging
-import pyam
 from typing import Callable, TypedDict, Iterator
 from configs.Environment import get_environment_variables
 
@@ -77,7 +76,8 @@ class MoreDiskMoreRamHandler:
         response.release_conn()
 
     def validate_file(self):
-        self.df = pyam.IamDataFrame(data=self.temp_downloaded_filepath)
+        # self.df = pyam.IamDataFrame(data=self.temp_downloaded_filepath)
+        pass
 
     def delete_local_file(self, filepath):
         if os.path.exists(filepath):

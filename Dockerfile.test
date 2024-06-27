@@ -1,0 +1,12 @@
+# FROM osgeo/gdal:ubuntu-full-3.6.3
+
+# RUN apt update -y
+
+# RUN apt install -y  python3-pip git  curl
+
+FROM python:3.9
+
+RUN unset DISPLAY
+
+COPY ./test_requirements.txt /app/requirements.txt
+RUN python -m pip -v install --no-cache-dir -r /app/requirements.txt

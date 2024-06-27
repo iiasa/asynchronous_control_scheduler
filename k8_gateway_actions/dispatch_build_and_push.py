@@ -17,6 +17,8 @@ from configs.Environment import get_environment_variables
 
 env = get_environment_variables()
 
+FOLDER_JOB_REPO_URL = 'https://github.com/IIASA-Accelerator/wkube-job.git'
+
 def escape_character(input_string, char_to_escape):
     """
     Escapes occurrences of a given character within a string.
@@ -37,10 +39,16 @@ def escape_character(input_string, char_to_escape):
     return escaped_string
 
 class BaseStack(str, enum.Enum):
-    PYTHON3_7 = 'PYTHON3_7'
-    GAMS_W_R = 'GAMS_W_R'
+    """For each stack below a dockerfile should be present in 
+    predefined stacks in k8_gateway_actions/predefined_stacks 
+    folder with the following nameing convension 'Dockerfile.<stackname>'
 
-def exec_command(command):
+    Each stack may demand some kind of stack native file to be present in
+    job or project folder.
+    """
+    PYTHON3_7 = 'PYTHON3_7'
+
+def exec_command(command, raise_exception=True):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # Read and print the output
@@ -54,6 +62,9 @@ def exec_command(command):
     # Optionally, you can wait for the process to finish
     process.wait()
 
+    if raise_exception and process.returncode != 0:
+        raise ValueError(f"Something went wrong with the command: '{command}'. Failed to build image.")
+
     return process.returncode
 
 class OCIImageBuilder:
@@ -62,20 +73,25 @@ class OCIImageBuilder:
     """
 
     IMAGE_BUILDING_SITE = "image_building_site"
+    PREDEFINED_STACKS_FOLDER = "k8_gateway_actions/predefined_stacks"
 
     def __call__(
             self, 
             git_repo, 
             version, 
-            dockerfile='Dockerfile', 
+            job_secrets={},
+            dockerfile=None, 
             base_stack: Union[BaseStack, None]=None,
             force_build=False
         ):
-        self.git_repo = git_repo
+        self.git_repo = git_repo.lower()
         self.version = version
         self.dockerfile = dockerfile
         self.base_stack = base_stack
         self.force_build = force_build
+        self.job_secrets = job_secrets
+
+        self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dcokerfile"
         
         if self.tag_exists() and (not self.force_build):
             print(
@@ -102,17 +118,26 @@ class OCIImageBuilder:
             f"docker://{self.get_image_tag()}"
         ]
 
-        exit_code = exec_command(command)
+        exit_code = exec_command(command, raise_exception=False)
 
         return exit_code == 0
+    
+    def get_git_pull_url(self):
+        username = self.job_secrets.get('ACC_WKUBE_GIT_USER', None)
+        password = self.job_secrets.get('ACC_WKUBE_GIT_PASSWORD', None)
 
-    def prepare_files(self):
-        
+        if username and password:
+            return f"https://{username}:{password}@{self.git_repo.split('https://')[1]}"
+        else:
+            if self.git_repo == env.FOLDER_JOB_REPO_URL:
+                raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
+
+    def prepare_files(self):        
         command = [
                 "git", "clone", 
                 "--depth", "1", 
                 "--branch", self.version, 
-                f"{self.git_repo}",
+                f"{self.get_git_pull_url()}",
                 self.IMAGE_BUILDING_SITE
             ]
 
@@ -126,13 +151,26 @@ class OCIImageBuilder:
             dockerfile_path = Path(f"{self.IMAGE_BUILDING_SITE}/{self.dockerfile}")
             if not dockerfile_path.is_file():
                 raise ValueError(f"{dockerfile_path} does not exists")
+            
+            self.dockerfile_path = str(dockerfile_path)
         else:
             self.create_dockerfile_for_basestack()
 
     def create_dockerfile_for_basestack(self):
         """Create a dockerfile and set the value of self.dockerfile
         """
-        raise NotImplementedError('Dockerfile creation of base_stack not implemented')
+
+        if not hasattr(BaseStack, self.base_stack):
+            raise ValueError(f"'{self.base_stack}' is not defined by WKUBE.")
+
+        base_stack_dockerfile_path = Path(f"{self.PREDEFINED_STACKS_FOLDER}/Dockerfile.{self.base_stack}")
+        if not base_stack_dockerfile_path.is_file():
+            raise ValueError(
+                f"Dockerfile for predefined stack "
+                f"'{self.base_stack}' does not exists. Please contact developer."
+            )
+        self.dockerfile_path = str(base_stack_dockerfile_path)
+        
         
 
     def get_image_tag(self):
@@ -154,7 +192,7 @@ class OCIImageBuilder:
                 "buildah", "bud", 
                 '-t',
                 self.get_image_tag(),
-                "-f", f"{self.IMAGE_BUILDING_SITE}/{self.dockerfile}",
+                "-f", self.dockerfile_path,
                 self.IMAGE_BUILDING_SITE
             ]
 
@@ -178,11 +216,17 @@ class OCIImageBuilder:
 
     def clean_up(self):
         
-        command = [
+        remove_built_image_command = [
             "buildah", "rmi", self.get_image_tag()
         ]
 
-        exec_command(command)
+        exec_command(remove_built_image_command)
+
+        cleanup_command = [
+            "buildah", "cleanup"
+        ]
+
+        exec_command(cleanup_command)
     
     def clear_site(self):
 
@@ -262,6 +306,7 @@ class DispachWkubeTask():
         return self.image_builder(
             self.kwargs['repo_url'],
             self.kwargs['repo_branch'],
+            job_secrets=self.kwargs['job_secrets'],
             dockerfile=self.kwargs['docker_filename'],
             base_stack=self.kwargs['base_stack'],
             force_build=self.kwargs['force_build']
@@ -312,7 +357,18 @@ class DispachWkubeTask():
 
         print("Created PVC:", created_pvc)
 
-    
+    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
+    def get_node_name(self):
+        label_selector = f"pvc_id={self.kwargs['pvc_id']}"
+
+        pod_resource = self.api_cli.resources.get(api_version='v1', kind='Pod')
+        pods = pod_resource.get(namespace=env.WKUBE_K8_NAMESPACE, label_selector=label_selector)
+
+
+        # If any pod matches, return the node name of the first one
+        if pods.items:
+            print(f"______________________FOLLOW UP NODE NAME {pods.items[0].spec.node_name}")
+            return pods.items[0].spec.node_name
 
     def __call__(self):
         self.kwargs['docker_image'] = self.get_or_create_job_image()
@@ -334,31 +390,22 @@ class DispachWkubeTask():
         image_pull_secrets = ["iiasaregcred"]  # Replace "my-secret" with the name of your secret
 
         # Specify the environment variables
+
+        job_conf =  self.kwargs.get('conf', {})
+        job_secrets = self.kwargs.get('job_secrets', {})
+
         env_vars = [
-            {"name": "JOB_TOKEN", "value": self.kwargs['job_token']},
-            {"name": "GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}/"}
+            {"name": "ACC_JOB_JOB_TOKEN", "value": self.kwargs['job_token']},
+            {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}/"},
+            *[dict(name=key, value=job_conf[key]) for key in job_conf],
+            *[dict(name=key, value=job_secrets[key]) for key in job_secrets],
         ]
 
         # Specify the node name
-        node_name = self.kwargs.get('node_id', None)  # Replace "my-node" with the name of the node you want to schedule the Job on
-
-        # Specify the pod affinity based on the job label and node name
-        # pod_affinity = {
-        #     "requiredDuringSchedulingIgnoredDuringExecution": [
-        #         {
-        #             "labelSelector": {
-        #                 "matchExpressions": [
-        #                     {
-        #                         "key": self.kwargs["pvc_id"],
-        #                         "operator": "In",
-        #                         "values": [job_name]
-        #                     }
-        #                 ]
-        #             },
-        #             "topologyKey": "kubernetes.io/hostname"
-        #         }
-        #     ]
-        # }
+        node_name = self.kwargs.get(
+            'node_id', 
+            self.get_node_name()
+        )  
         
         pod_affinity = {}
 
@@ -384,7 +431,10 @@ class DispachWkubeTask():
             "apiVersion": "batch/v1",
             "kind": "Job",
             "metadata": {
-                "name": job_name
+                "name": job_name,
+                "labels": {
+                    "pvc_id": self.kwargs['pvc_id']
+                }
             },
             "spec": {
                 "activeDeadlineSeconds": self.kwargs['timeout'],

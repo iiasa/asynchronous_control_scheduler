@@ -2,7 +2,6 @@ import io
 import os
 import json
 import uuid
-import pyam
 from typing import Callable, TypedDict, Iterator
 from accli import AjobCliService
 from dateutil.parser import parse as parse_date
