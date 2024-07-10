@@ -31,8 +31,6 @@ RUN mkdir /home/nonroot/app
 
 WORKDIR /home/nonroot/app
 
-# RUN chown -R nonroot:nonroot /home/nonroot/app
-
 RUN chmod -R 755 /home/nonroot/app
 
 COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.txt
@@ -42,4 +40,4 @@ RUN pip install -r /home/nonroot/app/requirements.txt
 # CMD sleep infinity
 
 # SPECIFIC QUEUE HERE
-CMD  sudo chown -R nonroot:nonroot /home/nonroot/app && cd ~/app && ~/.local/bin/celery -A acc_native_jobs worker -Q wkube --loglevel=INFO
+CMD  /bin/sh image_builder_command.sh

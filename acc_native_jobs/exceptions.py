@@ -1,0 +1,2 @@
+class WkubeRetryException(Exception):
+    pass

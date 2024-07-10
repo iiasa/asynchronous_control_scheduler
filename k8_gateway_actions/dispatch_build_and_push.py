@@ -14,10 +14,12 @@ from kubernetes.dynamic.exceptions import NotFoundError
 from accli import AjobCliService
 
 from configs.Environment import get_environment_variables
+from acc_native_jobs.exceptions import WkubeRetryException
 
 env = get_environment_variables()
 
 FOLDER_JOB_REPO_URL = 'https://github.com/IIASA-Accelerator/wkube-job.git'
+
 
 def escape_character(input_string, char_to_escape):
     """
@@ -113,7 +115,7 @@ class OCIImageBuilder:
     
     def tag_exists(self):
         command = [
-            "skopeo", "inspect", "--creds", 
+            "skopeo", "inspect", "--tls-verify=false", "--creds", 
             f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
             f"docker://{self.get_image_tag()}"
         ]
@@ -183,7 +185,7 @@ class OCIImageBuilder:
 
         if url.endswith(".git"):
             url = url[:-4]
-        return f"registry.iiasa.ac.at/accelerator/{url}:{self.version}"
+        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}:{self.version}"
 
     
     def build(self):
@@ -341,7 +343,7 @@ class DispachWkubeTask():
             },
             "spec": {
                 "accessModes": [
-                    "ReadWriteOnce"
+                    "ReadWriteMany"
                 ],
                 "resources": {
                     "requests": {
@@ -380,11 +382,11 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.2-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.4.1-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
         
         command = ["/bin/sh", "-c", shell_script]
 
-        job_name = f"{self.kwargs['job_id']}-{self.kwargs['pvc_id']}"
+        job_name = self.kwargs['job_id']
         
         # Specify the image pull secret
         image_pull_secrets = ["iiasaregcred"]  # Replace "my-secret" with the name of your secret
@@ -395,7 +397,7 @@ class DispachWkubeTask():
         job_secrets = self.kwargs.get('job_secrets', {})
 
         env_vars = [
-            {"name": "ACC_JOB_JOB_TOKEN", "value": self.kwargs['job_token']},
+            {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}/"},
             *[dict(name=key, value=job_conf[key]) for key in job_conf],
             *[dict(name=key, value=job_secrets[key]) for key in job_secrets],
@@ -489,7 +491,10 @@ class DispachWkubeTask():
         batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
         created_job = batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
 
-        print("Created Job:", created_job)
+        if not created_job:
+            raise WkubeRetryException("Could not dispatch task to wkube cluster.")
+        else:
+            print("Created Job:", created_job)
 
 
         # try:

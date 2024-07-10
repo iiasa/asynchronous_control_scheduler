@@ -7,6 +7,8 @@ class AppSetting():
         self.CELERY_BROKER_URL:str = os.environ['CELERY_BROKER_URL']
         self.ACCELERATOR_CLI_BASE_URL: str = os.environ['ACCELERATOR_CLI_BASE_URL']
         self.IMAGE_REGISTRY_URL: str = os.environ.get('IMAGE_REGISTRY_URL')
+        # This setting is to accomodate registry which supports project name. value eg: 'accelerator/' 
+        self.IMAGE_REGISTRY_TAG_PREFIX: str = os.environ.get('IMAGE_REGISTRY_TAG_PREFIX', '') 
         self.IMAGE_REGISTRY_USER: str = os.environ.get('IMAGE_REGISTRY_USER')
         self.IMAGE_REGISTRY_PASSWORD: str = os.environ.get('IMAGE_REGISTRY_PASSWORD')
         self.WKUBE_SECRET_JSON_B64: str = os.environ.get('WKUBE_SECRET_JSON_B64')
