@@ -8,6 +8,7 @@ from typing import Union
 from pathlib import Path
 from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
+from celery import current_task
 
 from kubernetes.dynamic.exceptions import NotFoundError
 
@@ -386,7 +387,8 @@ class DispachWkubeTask():
         
         command = ["/bin/sh", "-c", shell_script]
 
-        job_name = self.kwargs['job_id']
+        # job_name = self.kwargs['job_id']
+        job_name = current_task.request.id
         
         # Specify the image pull secret
         image_pull_secrets = ["iiasaregcred"]  # Replace "my-secret" with the name of your secret
