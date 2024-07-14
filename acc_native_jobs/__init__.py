@@ -5,6 +5,7 @@ import uuid
 import traceback
 import asyncio
 import threading
+from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
@@ -37,6 +38,8 @@ class RemoteStreamWriter(io.TextIOBase):
         self.chunk_size = chunk_size
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.log_counter = 0
+        self.verbose_unhealthy_report = Queue()
+        self.job_is_unhealthy = threading.Event()
         self.stop_event = threading.Event()
         self.lock = threading.RLock()
         self.write_thread = threading.Thread(target=self._periodic_write)
@@ -53,14 +56,30 @@ class RemoteStreamWriter(io.TextIOBase):
 
     def flush(self):
         with self.lock:
+            if self.job_is_unhealthy.is_set():
+                self.stop_event.set()
+                self.write_thread.join()
+                self.executor.shutdown(wait=False, cancel_futures=True)
+                verbose_error = self.verbose_unhealthy_report.get(block=False)
+                raise ValueError(verbose_error)
+
             if self.buffer:
                 chunk = self.buffer
                 self.buffer = ''
                 filename = f"celery{self.log_counter}.log"
                 self.log_counter += 1
                 self.executor.submit(self._send_chunk, chunk, filename)
+            else:
+                self.executor.submit(self.check_job_health)
                 
 
+    def check_job_health(self):
+        is_healthy = self.project_service.check_job_health()
+
+        if not is_healthy:
+            self.job_is_unhealthy.is_set()
+            self.verbose_unhealthy_report.put("Job is not healthy anymore.")
+                
     def _send_chunk(self, chunk, filename):
         self._send_request(chunk, filename)
         
@@ -71,8 +90,9 @@ class RemoteStreamWriter(io.TextIOBase):
                     filename,
                 )
         except Exception as err:
-            print(str(err))
-            os._exit(1)
+            self.job_is_unhealthy.is_set()
+            self.verbose_unhealthy_report.put(f"Unhealthy reason: {str(err)}")
+        
 
     def close(self):
         self.last_close = True
