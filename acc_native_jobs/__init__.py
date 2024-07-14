@@ -65,10 +65,14 @@ class RemoteStreamWriter(io.TextIOBase):
         self._send_request(chunk, filename)
         
     def _send_request(self, chunk, filename):
-        self.project_service.add_log_file(
-                chunk.encode(),
-                filename,
-            )
+        try:
+            self.project_service.add_log_file(
+                    chunk.encode(),
+                    filename,
+                )
+        except Exception as err:
+            print(str(err))
+            os._exit(1)
 
     def close(self):
         self.last_close = True
