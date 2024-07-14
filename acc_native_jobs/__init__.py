@@ -75,9 +75,8 @@ class RemoteStreamWriter(io.TextIOBase):
 
     def check_job_health(self):
         is_healthy = self.project_service.check_job_health()
-
         if not is_healthy:
-            self.job_is_unhealthy.is_set()
+            self.job_is_unhealthy.set()
             self.verbose_unhealthy_report.put("Job is not healthy anymore.")
                 
     def _send_chunk(self, chunk, filename):
@@ -90,7 +89,7 @@ class RemoteStreamWriter(io.TextIOBase):
                     filename,
                 )
         except Exception as err:
-            self.job_is_unhealthy.is_set()
+            self.job_is_unhealthy.set()
             self.verbose_unhealthy_report.put(f"Unhealthy reason: {str(err)}")
         
 
