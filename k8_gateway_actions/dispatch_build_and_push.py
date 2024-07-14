@@ -94,7 +94,7 @@ class OCIImageBuilder:
         self.force_build = force_build
         self.job_secrets = job_secrets
 
-        self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dcokerfile"
+        self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dockerfile"
         
         if self.tag_exists() and (not self.force_build):
             print(
