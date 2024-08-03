@@ -10,17 +10,17 @@ from kubernetes.dynamic import exceptions as k8exceptions
 
 env = get_environment_variables()
 
+DEFAULT_REGISTRIES = {
+    "jobstore": {
+        "server": env.IMAGE_REGISTRY_URL,
+        "username": env.IMAGE_REGISTRY_USER,
+        "password": env.IMAGE_REGISTRY_PASSWORD,
+        "email": ""
+    }
+}
+
 def create_default_registry_secret_resource():
     dcli = get_dcli()
-
-    DEFAULT_REGISTRIES = {
-        "jobstore": {
-            "server": env.IMAGE_REGISTRY_URL,
-            "username": env.IMAGE_REGISTRY_USER,
-            "password": env.IMAGE_REGISTRY_PASSWORD,
-            "email": ""
-        }
-    }
 
     for default_secret_name in DEFAULT_REGISTRIES.keys():
         b64_secret = create_b64_default_secret_json(
