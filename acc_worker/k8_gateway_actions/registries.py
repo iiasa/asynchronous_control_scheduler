@@ -2,29 +2,25 @@ import json
 import base64
 import hashlib
 
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 
-from k8_gateway_actions.commons import get_dcli
+from acc_worker.k8_gateway_actions.commons import get_dcli
 
 from kubernetes.dynamic import exceptions as k8exceptions
 
 env = get_environment_variables()
 
-DEFAULT_REGISTRIES = {
-    "jobstore": {
-        "server": env.IMAGE_REGISTRY_URL,
-        "username": env.IMAGE_REGISTRY_USER,
-        "password": env.IMAGE_REGISTRY_PASSWORD,
-        "email": ""
-    }
-}
-
-docker_config_json = json.dumps(DEFAULT_REGISTRIES)
-encoded_docker_config_json = base64.b64encode(docker_config_json.encode()).decode()
-
-
 def create_default_registry_secret_resource():
     dcli = get_dcli()
+
+    DEFAULT_REGISTRIES = {
+        "jobstore": {
+            "server": env.IMAGE_REGISTRY_URL,
+            "username": env.IMAGE_REGISTRY_USER,
+            "password": env.IMAGE_REGISTRY_PASSWORD,
+            "email": ""
+        }
+    }
 
     for default_secret_name in DEFAULT_REGISTRIES.keys():
         b64_secret = create_b64_default_secret_json(

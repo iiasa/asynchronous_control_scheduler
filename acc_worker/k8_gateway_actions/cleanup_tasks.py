@@ -1,7 +1,7 @@
 import urllib3
 from urllib3.exceptions import HTTPError
-from k8_gateway_actions.commons import get_dcli
-from configs.Environment import get_environment_variables
+from acc_worker.k8_gateway_actions.commons import get_dcli
+from acc_worker.configs.Environment import get_environment_variables
 
 env = get_environment_variables()
 

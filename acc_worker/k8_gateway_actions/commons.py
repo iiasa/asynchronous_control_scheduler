@@ -2,7 +2,7 @@ import json
 import base64
 import hashlib
 
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 
 from kubernetes import client, config, dynamic
 from kubernetes.client import api_client

@@ -6,4 +6,4 @@ COPY ./requirements.txt /app/requirements.txt
 
 RUN pip install -r /app/requirements.txt
 
-CMD celery -A acc_native_jobs worker --loglevel=INFO
+CMD celery -A acc_worker.acc_native_jobs worker --loglevel=INFO

@@ -15,18 +15,17 @@ from celery.signals import worker_ready
 from celery.exceptions import SoftTimeLimitExceeded
 
 from accli import AjobCliService
-from acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
+from acc_worker.acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
 
-from acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
-from k8_gateway_actions.dispatch_build_and_push import DispachWkubeTask
-from .IamcVerificationService import IamcVerificationService
+from acc_worker.acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
+from acc_worker.k8_gateway_actions.dispatch_build_and_push import DispachWkubeTask
 from .exceptions import WkubeRetryException
-from k8_gateway_actions.registries import create_default_registry_secret_resource
-from k8_gateway_actions.service_accounts import add_pvc_role_to_service_account
-from k8_gateway_actions.cleanup_tasks import delete_pvc, delete_orphan_pvcs
+from acc_worker.k8_gateway_actions.registries import create_default_registry_secret_resource
+from acc_worker.k8_gateway_actions.service_accounts import add_pvc_role_to_service_account
+from acc_worker.k8_gateway_actions.cleanup_tasks import delete_pvc, delete_orphan_pvcs
 
-from acc_native_jobs import celeryconfig
-from configs.Environment import get_environment_variables
+from acc_worker.acc_native_jobs import celeryconfig
+from acc_worker.configs.Environment import get_environment_variables
 
 from kubernetes import client, config, dynamic
 from kubernetes.client import api_client

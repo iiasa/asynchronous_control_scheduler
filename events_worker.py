@@ -6,7 +6,7 @@ import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from kubernetes import client, config, watch
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 
 
 env = get_environment_variables()

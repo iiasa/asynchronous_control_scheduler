@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = ['acc_native_jobs', 'k8_gateway_actions']
+packages = ['acc_worker']
 
 [project.urls]
 "Homepage" = "https://github.com/iiasa/accli"

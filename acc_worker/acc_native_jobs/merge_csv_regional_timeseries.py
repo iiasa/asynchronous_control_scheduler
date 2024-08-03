@@ -5,7 +5,7 @@ import uuid
 from typing import Callable, TypedDict, Iterator
 from accli import AjobCliService
 from dateutil.parser import parse as parse_date
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 
 env = get_environment_variables()
 

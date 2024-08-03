@@ -6,7 +6,7 @@ import uuid
 import itertools
 from typing import Optional
 from accli import AjobCliService
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 from jsonschema import validate as jsonschema_validate
 from jsonschema.exceptions import ValidationError, SchemaError
 

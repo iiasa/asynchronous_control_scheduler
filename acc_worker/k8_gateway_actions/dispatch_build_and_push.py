@@ -22,8 +22,8 @@ from kubernetes.dynamic.exceptions import NotFoundError
 
 from accli import AjobCliService
 
-from configs.Environment import get_environment_variables
-from acc_native_jobs.exceptions import WkubeRetryException
+from acc_worker.configs.Environment import get_environment_variables
+from acc_worker.acc_native_jobs.exceptions import WkubeRetryException
 from .registries import DEFAULT_REGISTRIES, create_user_registry_secret
 
 env = get_environment_variables()
@@ -52,7 +52,7 @@ def escape_character(input_string, char_to_escape):
 
 class BaseStack(str, enum.Enum):
     """For each stack below a dockerfile should be present in 
-    predefined stacks in k8_gateway_actions/predefined_stacks 
+    predefined stacks in acc_worker/k8_gateway_actions/predefined_stacks 
     folder with the following nameing convension 'Dockerfile.<stackname>'
 
     Each stack may demand some kind of stack native file to be present in
@@ -85,7 +85,7 @@ class OCIImageBuilder:
     """
 
     IMAGE_BUILDING_SITE = "image_building_site"
-    PREDEFINED_STACKS_FOLDER = "k8_gateway_actions/predefined_stacks"
+    PREDEFINED_STACKS_FOLDER = "acc_worker/k8_gateway_actions/predefined_stacks"
 
     def __call__(
             self, 
