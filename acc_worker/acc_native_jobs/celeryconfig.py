@@ -1,4 +1,4 @@
-from configs.Environment import get_environment_variables
+from acc_worker.configs.Environment import get_environment_variables
 from celery.schedules import crontab
 
 env = get_environment_variables()
