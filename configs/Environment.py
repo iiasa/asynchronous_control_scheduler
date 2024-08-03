@@ -15,6 +15,14 @@ class AppSetting():
         self.WKUBE_K8_NAMESPACE: str = os.environ.get('WKUBE_K8_NAMESPACE', "wkube")
         self.WKUBE_AUTO_GITHUB_PAT: str = os.environ.get('WKUBE_AUTO_GITHUB_PAT', "")
 
+        self.JOBSTORE_S3_ENDPOINT: Optional[str] = os.environ.get('JOBSTORE_S3_ENDPOINT', None)
+        self.JOBSTORE_S3_API_KEY: Optional[str] = os.environ.get('JOBSTORE_S3_API_KEY', None)
+        self.JOBSTORE_S3_SECRET_KEY: Optional[str] = os.environ.get('JOBSTORE_S3_SECRET_KEY', None)
+        self.JOBSTORE_S3_REGION: Optional[str] = os.environ.get('JOBSTORE_S3_REGION', "eu-central-1")
+        self.JOBSTORE_S3_BUCKET_NAME: Optional[str] = os.environ.get('JOBSTORE_S3_BUCKET_NAME', None)
+
+        self.ACCELERATOR_APP_TOKEN: Optional[str] = os.environ.get('ACCELERATOR_APP_TOKEN', None)
+
 @lru_cache
 def get_environment_variables():
     settings = AppSetting()

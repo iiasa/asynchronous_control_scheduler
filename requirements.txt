@@ -1,4 +1,5 @@
 jsonschema==4.19.2
 celery[librabbitmq]==5.3.4
 kubernetes==29.0.0
+minio==7.2.3
 git+https://github.com/iiasa/accli.git

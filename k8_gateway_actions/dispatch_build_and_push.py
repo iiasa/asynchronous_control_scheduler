@@ -1,11 +1,19 @@
 import re
+import os
 import base64
 import json
 import subprocess
 import enum
 import sys
+import uuid
+import time
+import shutil
+import zipfile
 from typing import Union
 from pathlib import Path
+from celery import current_task
+from minio import Minio
+from datetime import datetime, timedelta
 from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
 from celery import current_task
@@ -16,6 +24,7 @@ from accli import AjobCliService
 
 from configs.Environment import get_environment_variables
 from acc_native_jobs.exceptions import WkubeRetryException
+from .registries import DEFAULT_REGISTRIES, create_user_registry_secret
 
 env = get_environment_variables()
 
@@ -94,6 +103,8 @@ class OCIImageBuilder:
         self.force_build = force_build
         self.job_secrets = job_secrets
 
+        self.set_image_building_site()
+
         self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dockerfile"
         
         if self.tag_exists() and (not self.force_build):
@@ -112,6 +123,10 @@ class OCIImageBuilder:
             self.clear_site()
         
         return self.get_image_tag()
+    
+    def set_image_building_site(self):
+        unq_folder = str(uuid.uuid4())
+        self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{unq_folder}"
             
     
     def tag_exists(self):
@@ -135,7 +150,7 @@ class OCIImageBuilder:
             if self.git_repo == env.FOLDER_JOB_REPO_URL:
                 raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
 
-    def prepare_files(self):        
+    def pull_files_from_git(self):
         command = [
                 "git", "clone", 
                 "--depth", "1", 
@@ -145,6 +160,54 @@ class OCIImageBuilder:
             ]
 
         exec_command(command)
+
+    def pull_files_from_job_store(self):
+
+        s3_endpoint = env.JOBSTORE_S3_ENDPOINT
+
+        if s3_endpoint.startswith('https://'):
+            s3_endpoint = s3_endpoint.split("https://")[1]
+        elif s3_endpoint.startswith("http://"):
+            s3_endpoint = s3_endpoint.split("https://")[1]
+
+        client = Minio(
+            s3_endpoint,
+            access_key=env.JOBSTORE_S3_API_KEY,
+            secret_key=env.JOBSTORE_S3_SECRET_KEY,
+            secure=env.JOBSTORE_S3_ENDPOINT.startswith('https'),
+            region=env.JOBSTORE_S3_REGION,
+            cert_check=False
+            # http_client=http_client,
+        )
+
+        remote_filename = self.git_repo.split("s3accjobstore://")[-1]
+
+        downloaded_filepath = f"{self.IMAGE_BUILDING_SITE}/{remote_filename}"
+
+        client.fget_object(
+            env.JOBSTORE_S3_BUCKET_NAME,
+            remote_filename,
+            downloaded_filepath
+        )
+
+        if not zipfile.is_zipfile(downloaded_filepath):
+            raise ValueError(f"{downloaded_filepath} is not a valid zip file")
+    
+        parent_dir = os.path.dirname(downloaded_filepath)
+
+        with zipfile.ZipFile(downloaded_filepath, 'r') as zip_ref:
+            zip_ref.extractall(parent_dir)
+        
+        os.remove(downloaded_filepath)
+    
+    def prepare_files(self):
+
+        if self.git_repo.startswith("s3accjobstore://"):
+            self.pull_files_from_job_store()
+        
+        else:
+            self.pull_files_from_git()
+
     
         # Step 2. Either dockerfile should be present or base_stack should be choosen
         if not (self.dockerfile or self.base_stack):
@@ -184,7 +247,13 @@ class OCIImageBuilder:
         if url.startswith('www.'):
             url = re.sub(r'www.', '', url)
 
+        if url.startswith('s3accjobstore://'):
+            url = re.sub(r's3accjobstore://', '', url)
+
         if url.endswith(".git"):
+            url = url[:-4]
+        
+        if url.endswith(".zip"):
             url = url[:-4]
         return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}:{self.version}"
 
@@ -199,6 +268,9 @@ class OCIImageBuilder:
                 self.IMAGE_BUILDING_SITE
             ]
 
+        if self.force_build:
+            command.insert(2, '--no-cache')
+
         exec_command(command)
 
     def push_to_registry(self):
@@ -206,14 +278,16 @@ class OCIImageBuilder:
         login_command = [
                "buildah", 
                "login", 
-               "--username", env.IMAGE_REGISTRY_USER, 
-               "--password", env.IMAGE_REGISTRY_PASSWORD,
+               "--tls-verify=false", 
+               f"--username={env.IMAGE_REGISTRY_USER}", 
+               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
                env.IMAGE_REGISTRY_URL
             ]
+        # buildah login --username myregistry --password myregistrypassword registry:8443
 
         exec_command(login_command)
 
-        push_command = ["buildah", "push", self.get_image_tag()]
+        push_command = ["buildah", "push", "--tls-verify=false",  self.get_image_tag()]
 
         exec_command(push_command)
 
@@ -226,7 +300,7 @@ class OCIImageBuilder:
         exec_command(remove_built_image_command)
 
         cleanup_command = [
-            "buildah", "cleanup"
+            "buildah", "rmi", "-p"
         ]
 
         exec_command(cleanup_command)
@@ -239,11 +313,26 @@ class OCIImageBuilder:
 
         exec_command(delete_command)
 
-        make_command = [
-                "mkdir", self.IMAGE_BUILDING_SITE
-            ]
+        directory = self.__class__.IMAGE_BUILDING_SITE
 
-        exec_command(make_command)
+        now = time.time()
+
+        # Calculate the time for "yesterday"
+        yesterday = now - 24*3600
+
+        # Iterate over each item in the directory
+        for folder_name in os.listdir(directory):
+            folder_path = os.path.join(directory, folder_name)
+            
+            # Check if the item is a directory
+            if os.path.isdir(folder_path):
+                # Get the folder's creation time
+                creation_time = os.path.getctime(folder_path)
+                
+                # If the folder was created before yesterday, delete it
+                if creation_time < yesterday:
+                    print(f"Deleting folder: {folder_path}")
+                    shutil.rmtree(folder_path)
 
 
 BuildOCIImage = OCIImageBuilder()
@@ -268,6 +357,19 @@ class DispachWkubeTask():
         self.api_cli = self.get_service_api()
 
         self.image_builder =  OCIImageBuilder()
+
+    def get_core_v1_api(self):
+        config.load_kube_config_from_dict(
+            config_dict=json.loads(
+                base64.b64decode(
+                    env.WKUBE_SECRET_JSON_B64.encode()
+                )
+            )
+        )
+
+        v1 = client.CoreV1Api()
+
+        return v1
 
     def get_service_api(self):
         
@@ -379,11 +481,36 @@ class DispachWkubeTask():
         self.get_or_create_cache_pvc()
         self.launch_k8_job()
 
+
+    def get_image_pull_secrets(self):
+        
+        registires_name = DEFAULT_REGISTRIES.keys()
+
+        job_secrets = self.kwargs.get('job_secrets', {})
+
+        server = job_secrets.get('ACC_WKUBE_REGISTRY_SERVER')
+        username = job_secrets.get('ACC_WKUBE_REGISTRY_USERNAME')
+        password = job_secrets.get('ACC_WKUBE_REGISTRY_PASSWORD')
+        email = job_secrets.get('ACC_WKUBE_GIT_PASSWORD')
+
+        if server and username and password:
+
+            registry_name = create_user_registry_secret(
+                server,
+                username,
+                password,
+                email
+            )
+
+            registires_name += registry_name
+        
+        return registires_name
+
     
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.2-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
         
         command = ["/bin/sh", "-c", shell_script]
 
@@ -391,7 +518,7 @@ class DispachWkubeTask():
         job_name = current_task.request.id
         
         # Specify the image pull secret
-        image_pull_secrets = ["iiasaregcred"]  # Replace "my-secret" with the name of your secret
+        image_pull_secrets = self.get_image_pull_secrets()
 
         # Specify the environment variables
 
@@ -441,7 +568,9 @@ class DispachWkubeTask():
                 }
             },
             "spec": {
+                "backoffLimit": 0,
                 "activeDeadlineSeconds": self.kwargs['timeout'],
+                "ttlSecondsAfterFinished": 60*15, #15 minutes 
                 "template": {
                     "metadata": {
                         "labels": {
@@ -456,6 +585,11 @@ class DispachWkubeTask():
                                 "command": command,
                                 "resources": {
                                     "limits": {
+                                        "memory": self.kwargs['required_ram'],
+                                        "cpu": self.kwargs['required_cores'],
+                                        "ephemeral-storage": self.kwargs['required_storage_local']
+                                    },
+                                     "requests": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": self.kwargs['required_cores'],
                                         "ephemeral-storage": self.kwargs['required_storage_local']
@@ -493,28 +627,91 @@ class DispachWkubeTask():
         batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
         created_job = batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
 
-        if not created_job:
-            raise WkubeRetryException("Could not dispatch task to wkube cluster.")
-        else:
-            print("Created Job:", created_job)
 
 
-        # try:
-        #     # Create the Pod
-        #     api_instance.create_namespaced_pod(namespace="default", body=pod_manifest)
-        #     print("Pod created successfully!")
+        if created_job:
+            print("Created wkube Job")
+
+
+        v1_pods_resources = self.api_cli.resources.get(api_version='v1', kind='Pod')
+
+        while True:
+        
+            pods = v1_pods_resources.get(
+                namespace=env.WKUBE_K8_NAMESPACE, 
+                label_selector=f"job-name={job_name}"
+            )
+
+            time.sleep(5)
+
+            if pods['items']:
+                break
+            else:
+                print("Creating job pod.")
+
+    
+        pods = [pod['metadata']['name'] for pod in pods['items']]
+
+        if len(pods) != 1:
+            raise ValueError("Exacly one pod should be present")
+
+
+        phase = self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
+        self.print_pod_events(pods[0], env.WKUBE_K8_NAMESPACE, phase)
+       
+
+    def monitor_pod(self, pod_name, job_name, namespace):
+        core_v1_api = self.api_cli.resources.get(api_version='v1', kind='Pod')
+    
+        c = 0
+        while True:
             
-        #     # Wait for the pod to be in a non-pending state
-        #     while True:
-        #         time.sleep(1)
-        #         pod = api_instance.read_namespaced_pod(name="test-pod", namespace="default")
-        #         if pod.status.phase != "Pending":
-        #             break
-                
-        #     # Check if pod creation encountered any issues
-        #     if pod.status.phase == "Failed":
-        #         print("Pod creation failed:", pod.status.message)
-        #     else:
-        #         print("Pod is ready to execute.")
-        # except ApiException as e:
-        #     print("Exception when calling CoreV1Api->create_namespaced_pod:", e)
+            pod = core_v1_api.get(name=pod_name, namespace=namespace)
+            phase = pod['status']['phase']
+            print(f"Pod {pod_name} is in phase {phase}")
+            
+            if phase == 'Pending':
+                c += 1
+            else:
+                break
+
+            if c > 4:
+                # Delete job here
+                batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
+                delete_options = {
+                    'apiVersion': 'v1',
+                    'kind': 'DeleteOptions',
+                    'propagationPolicy': 'Foreground'
+                }
+                batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, body=delete_options)
+                current_task.retry(
+                    countdown=60
+                )
+
+            time.sleep(5)
+
+        return phase
+
+
+    def print_pod_events(self, pod_name, namespace, phase):
+        time.sleep(6)
+        events_v1_api = self.api_cli.resources.get(api_version='v1', kind='Event')
+        
+        events = events_v1_api.get(namespace=namespace, field_selector=f'involvedObject.name={pod_name}')
+        print("** Job pod events\n")
+        for event in events['items']:
+            print(f"Event for Pod {pod_name}: {event['message']}")
+
+        print("** Agent non captured logs")
+        print("============================")
+
+        core_v1_api = self.get_core_v1_api()
+
+        try:
+            logs = core_v1_api.read_namespaced_pod_log(name=pod_name, namespace=env.WKUBE_K8_NAMESPACE)
+            print(logs)
+        except client.exceptions.ApiException as e:
+            print(f"An error occurred while fetching logs for pod {pod_name}: {e}")
+
+        if phase == 'Failed':
+            raise ValueError("Failed during preparing and starting k8s job.")
