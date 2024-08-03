@@ -5,7 +5,7 @@ import hashlib
 from acc_worker.configs.Environment import get_environment_variables
 
 from acc_worker.k8_gateway_actions.commons import get_dcli
-from acc_worker.kubernetes.dynamic import exceptions as k8exceptions
+from kubernetes.dynamic import exceptions as k8exceptions
 
 env = get_environment_variables()
 
