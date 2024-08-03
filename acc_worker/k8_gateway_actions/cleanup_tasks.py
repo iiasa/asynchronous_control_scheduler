@@ -5,13 +5,6 @@ from acc_worker.configs.Environment import get_environment_variables
 
 env = get_environment_variables()
 
-if not env.ACCELERATOR_APP_TOKEN:
-    raise ValueError("env.ACCELERATOR_APP_TOKEN is not set.")
-
-HEADERS = {
-    'Content-Type': 'application/json',
-    'x-authorization': env.ACCELERATOR_APP_TOKEN
-}
 
 retries = urllib3.util.Retry(total=10, backoff_factor=1)
 
@@ -34,6 +27,15 @@ def delete_pvc(pvc_name):
         print(f"Error deleting PVC '{pvc_name}' in namespace '{env.WKUBE_K8_NAMESPACE}': {e}")
 
 def delete_orphan_pvcs():
+
+    if not env.ACCELERATOR_APP_TOKEN:
+        raise ValueError("env.ACCELERATOR_APP_TOKEN is not set.")
+
+    HEADERS = {
+        'Content-Type': 'application/json',
+        'x-authorization': env.ACCELERATOR_APP_TOKEN
+    }
+
     dcli = get_dcli()
 
     # Get all PVCs in the specified namespace
