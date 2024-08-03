@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = ['acc_worker']
+packages = ['acc_worker', 'acc_worker.*']
 
 [project.urls]
 "Homepage" = "https://github.com/iiasa/accli"
