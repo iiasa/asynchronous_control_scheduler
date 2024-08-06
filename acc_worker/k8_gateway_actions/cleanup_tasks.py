@@ -38,32 +38,44 @@ def delete_orphan_pvcs():
 
     dcli = get_dcli()
 
-    # Get all PVCs in the specified namespace
-    pvc_resource = dcli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
-    all_pvcs = pvc_resource.get(namespace=env.WKUBE_K8_NAMESPACE)
-
-    # Get all Pods in the specified namespace
-    pod_resource = dcli.resources.get(api_version='v1', kind='Pod')
-    all_pods = pod_resource.get(namespace=env.WKUBE_AUTO_GITHUB_PAT)
-
-    # Extract PVC names from Pods
-    mounted_pvc_names = set()
-    for pod in all_pods.get('items', []):
-        volumes = pod.get('spec', {}).get('volumes', [])
-        for volume in volumes:
-            if 'persistentVolumeClaim' in volume:
-                pvc_name = volume['persistentVolumeClaim']['claimName']
-                mounted_pvc_names.add(pvc_name)
-
-    # Identify unmounted PVCs
-    unmounted_pvcs = []
-    for pvc in all_pvcs.get('items', []):
-        pvc_name = pvc['metadata']['name']
-        if pvc_name not in mounted_pvc_names:
-            unmounted_pvcs.append(pvc_name)
-
+    api_groups = {
+        "pods": "v1",
+        "persistentvolumeclaims": "v1",
+    }
     
-    remaining_pvcs = unmounted_pvcs
+    # Get PVCs and Pods resources
+    pvc_api = dcli.resources.get(api_version=api_groups["persistentvolumeclaims"], kind="PersistentVolumeClaim")
+    pod_api = dcli.resources.get(api_version=api_groups["pods"], kind="Pod")
+
+    try:
+        pvcs = pvc_api.get(namespace=env.WKUBE_K8_NAMESPACE)
+        pods = pod_api.get(namespace=env.WKUBE_K8_NAMESPACE)
+    except ApiException as e:
+        print(f"An error occurred: {e}")
+        return []
+
+    # Collect PVCs bound to running Pods
+    bound_pvcs = set()
+    bound_pvcs_pod_mapping = dict()
+    for pod in pods.get('items', []):
+        if pod['status']['phase'] == 'Running':
+            for volume in pod.get('spec', {}).get('volumes', []):
+                pvc_name = volume.get('persistentVolumeClaim', {}).get('claimName')
+                if pvc_name:
+                    bound_pvcs.add(pvc_name)
+                    bound_pvcs_pod_mapping[pvc_name] = pod['metadata']['name']
+
+    # Collect PVCs that are not bound to any running Pods
+    unbound_or_non_running_pvcs = []
+    for pvc in pvcs.get('items', []):
+        pvc_name = pvc['metadata']['name']
+        if pvc_name not in bound_pvcs:
+            unbound_or_non_running_pvcs.append(pvc_name)
+        else:
+            # If PVC is bound to a Pod but the Pod is not running
+            unbound_or_non_running_pvcs.append(pvc_name)
+    
+    remaining_pvcs = unbound_or_non_running_pvcs
 
     while True:
         batch = remaining_pvcs[:500]
@@ -87,6 +99,13 @@ def delete_orphan_pvcs():
 
         # Delete unmounted PVCs
         for pvc_name in deleteable_pvcs:
+            #Check if it has associated pod
+            pod_tbdel = bound_pvcs_pod_mapping.get(bound_pvcs_pod_mapping)
+            if pod_tbdel:
+                pod_resource.delete(name=pod_tbdel, namespace=env.WKUBE_K8_NAMESPACE, body=V1DeleteOptions(propagation_policy='Foreground'))
+                print(f"Pod '{pod_tbdel} with pvc {pvc_name} has been deleted.")
+
+
             print(f"Deleting PVC: {pvc_name}")
             pvc_resource.delete(name=pvc_name, namespace=env.WKUBE_K8_NAMESPACE)
 

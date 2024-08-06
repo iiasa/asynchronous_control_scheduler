@@ -255,7 +255,7 @@ class OCIImageBuilder:
         
         if url.endswith(".zip"):
             url = url[:-4]
-        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}:{self.version}"
+        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}{self.version}:latest"
 
     
     def build(self):
@@ -510,7 +510,7 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.2-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.3-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
         
         command = ["/bin/sh", "-c", shell_script]
 
@@ -527,7 +527,7 @@ class DispachWkubeTask():
 
         env_vars = [
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
-            {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}/"},
+            {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
             *[dict(name=key, value=job_conf[key]) for key in job_conf],
             *[dict(name=key, value=job_secrets[key]) for key in job_secrets],
         ]
@@ -570,7 +570,7 @@ class DispachWkubeTask():
             "spec": {
                 "backoffLimit": 0,
                 "activeDeadlineSeconds": self.kwargs['timeout'],
-                "ttlSecondsAfterFinished": 60*15, #15 minutes 
+                "ttlSecondsAfterFinished": 0,
                 "template": {
                     "metadata": {
                         "labels": {
@@ -675,7 +675,7 @@ class DispachWkubeTask():
             else:
                 break
 
-            if c > 4:
+            if c > 6:
                 # Delete job here
                 batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
                 delete_options = {

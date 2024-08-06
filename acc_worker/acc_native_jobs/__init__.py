@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout, redirect_stderr
 from celery import Celery
 from celery.signals import worker_ready
-from celery.exceptions import SoftTimeLimitExceeded
+from celery.exceptions import SoftTimeLimitExceeded, Retry as CeleryRetry
 
 from accli import AjobCliService
 from acc_worker.acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
@@ -193,7 +193,8 @@ def wkube_capture_log(func):
         log_stream.close()
 
         if error:
-            project_service.update_job_status("ERROR")
+            if not isinstance(error, CeleryRetry):
+                project_service.update_job_status("ERROR")
             raise error
         
         
