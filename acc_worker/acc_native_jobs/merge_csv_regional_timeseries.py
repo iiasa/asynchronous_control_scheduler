@@ -155,6 +155,9 @@ class CSVRegionalTimeseriesMergeService:
                         dat = '\n'
                         merged_file.write(dat)
 
+                    # Skip the first line of the being_merged_file
+                    first_line = being_merged_file.readline()
+
                     while True:
                         dat = being_merged_file.read(1024**2)
                         if not dat:

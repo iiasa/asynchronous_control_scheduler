@@ -241,12 +241,13 @@ class CsvRegionalTimeseriesVerificationService():
 
             self.validated_headers = []
 
-            final_csv_column_order = self.rules['root_schema_declarations'].get('final_csv_column_order')
+            final_dimensions_order = self.rules['root_schema_declarations'].get('final_dimensions_order')
 
-            if final_csv_column_order:
-                for item in final_csv_column_order:
-                    if item not in [self.time_dimension, self.value_dimension]:
-                        self.validated_headers.append(item)
+            if final_dimensions_order:
+                for item in final_dimensions_order:
+                    if item in headers:
+                        if item not in [self.time_dimension, self.value_dimension]:
+                            self.validated_headers.append(item)
             
             for item in headers:
                 used_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
