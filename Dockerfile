@@ -8,4 +8,4 @@ RUN pip install -r /app/requirements.txt
 
 COPY . .
 
-CMD celery -A acc_native_jobs worker --loglevel=INFO --concurrency=8
+CMD celery -A acc_worker.acc_native_jobs worker --loglevel=INFO --concurrency=8
