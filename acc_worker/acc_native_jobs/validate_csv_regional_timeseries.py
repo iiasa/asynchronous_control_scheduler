@@ -133,20 +133,18 @@ class CsvRegionalTimeseriesVerificationService():
 
             if key == self.time_dimension.lower():
                 if float(row[key]) < self.validation_metadata[
-                    self.time_dimension.lower()
+                    f"{self.time_dimension.lower()}_meta"
                 ]["min_value"]:
                     self.validation_metadata[
-                        self.time_dimension.lower()
+                        f"{self.time_dimension.lower()}_meta"
                     ]["min_value"] = float(row[key])
 
                 if float(row[key]) > self.validation_metadata[
-                    self.time_dimension.lower()
+                    f"{self.time_dimension.lower()}_meta"
                 ]["max_value"]:
                     self.validation_metadata[
-                        self.time_dimension.lower()
+                        f"{self.time_dimension.lower()}_meta"
                     ]["max_value"] = float(row[key])
-                
-                continue
 
             if key == self.value_dimension:
                 continue
@@ -248,6 +246,8 @@ class CsvRegionalTimeseriesVerificationService():
                     if item in headers:
                         if item not in [self.time_dimension, self.value_dimension]:
                             self.validated_headers.append(item)
+            else:
+                raise ValueError("'final_dimensions_order' in template is required")
             
             for item in headers:
                 used_headers = self.validated_headers + [self.time_dimension, self.value_dimension]
