@@ -71,7 +71,7 @@ class CsvRegionalTimeseriesVerificationService():
 
     def init_validation_metadata(self):
         self.validation_metadata = {
-            self.time_dimension.lower(): {
+            f"{self.time_dimension.lower()}_meta": {
                 "min_value": float('+inf'),
                 "max_value": float('-inf')
             }
