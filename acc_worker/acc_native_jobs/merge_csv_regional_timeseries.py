@@ -116,13 +116,20 @@ class CSVRegionalTimeseriesMergeService:
             next_validation_metadata = self.project_service.get_bucket_object_validation_details(bucket_object_id)['validation_metadata']
 
             for key in first_validation_metadata:
-                if key.lower() == time_dimension.lower():
+
+                if f"{time_dimension.lower()}_meta" not in first_validation_metadata:
+                    raise ValueError(f"Revalidate bucket object #{self.bucket_object_id_list[0]}")
+
+                if f"{time_dimension.lower()}_meta" not in next_validation_metadata:
+                    raise ValueError(f"Revalidate bucket object #{bucket_object_id}")
+
+                if key.lower() == f"{time_dimension.lower()}_meta":
                     if next_validation_metadata[key]['min_value'] < first_validation_metadata[key]['min_value']:
-                        first_validation_metadata[key]['min_value'] = next_validation_metadata[key]['min_value']
+                        first_validation_metadata[key]['min_value'] = f"{time_dimension.lower()}_meta"[key]['min_value']
                     
                     if next_validation_metadata[key]['max_value'] > first_validation_metadata[key]['max_value']:
                         first_validation_metadata[key]['max_value'] = next_validation_metadata[key]['max_value']
-                elif key == 'variable-unit':
+                if key == 'variable-unit':
                     first_merge_candidate = first_validation_metadata[key]
                     next_merge_candidate = next_validation_metadata[key]
 
