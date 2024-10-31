@@ -1,10 +1,41 @@
-FROM osgeo/gdal:ubuntu-full-3.6.3
+# FROM osgeo/gdal:ubuntu-full-3.6.3
 
-RUN apt update -y
+# RUN apt update -y
 
-RUN apt install -y  python3-pip git  curl
+# RUN apt install -y  python3-pip git  curl
+
+# RUN pip install --upgrade pip setuptools wheel
+
+# COPY ./test_requirements.txt /app/requirements.txt
+# RUN pip install --no-cache-dir -r /app/requirements.txt
+
+FROM  python:3.9
+
+# RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+
+# RUN apt-get update && apt-get install -y software-properties-common
+
+# RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+
+
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    gdal-bin \
+    libgdal-dev \
+    python3-gdal \
+    build-essential \
+    python3-dev \
+    git
+
+# Set GDAL environment variables
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
 
 RUN pip install --upgrade pip setuptools wheel
 
-COPY ./test_requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# RUN pip install rpy2
+
+# RUN python -c "from rpy2.robjects.packages import importr; utils = importr('utils'); utils.install_packages('terra'); utils.install_packages('terra'); utils.install_packages('ncdf4')"
