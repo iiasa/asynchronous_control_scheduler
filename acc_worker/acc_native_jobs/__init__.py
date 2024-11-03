@@ -69,7 +69,6 @@ class RemoteStreamWriter(io.TextIOBase):
 
     def _periodic_write(self):
         while not self.stop_event.is_set():
-            print('is it ticking')
             if self.job_is_unhealthy.is_set():
                 # Line below should trigger write function if there is nothing else from actual function to write.
                 print("Terminating job because of health issue.")
@@ -97,7 +96,6 @@ class RemoteStreamWriter(io.TextIOBase):
             self.job_is_unhealthy.set()
             print("Set via health check")
 
-        print(f"Printing is_healthy {is_healthy}")
                 
     def _send_chunk(self, chunk, filename):
         self._send_request(chunk, filename)
@@ -113,7 +111,6 @@ class RemoteStreamWriter(io.TextIOBase):
             self.job_is_unhealthy.set()
             print("Set via log")
         
-        print(f"Printing IS HEALTHY")
         
 
     def close(self):

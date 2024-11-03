@@ -1,13 +1,10 @@
-FROM python:3.11.2
-
-# When using ubuntu 22.04
-# apt-get install pkg-config cmake libtool autoconf
+FROM ubuntu:22.04
 
 ENV GID=99
 ENV UID=1000
 
 RUN apt update && \
-    apt install -y sudo && \
+    apt install -y sudo pkg-config cmake libtool autoconf && \
     addgroup --gid $GID nonroot && \
     adduser --uid $UID --gid $GID --disabled-password --gecos "" nonroot && \
     echo 'nonroot ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -16,8 +13,6 @@ RUN apt install -y buildah skopeo slirp4netns
 
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
 
-ENV STORAGE_DRIVER=vfs
-ENV BUILDAH_ISOLATION=chroot
 
 RUN rm -rf /etc/subuid
 
@@ -37,7 +32,4 @@ COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.t
 
 RUN pip install -r /home/nonroot/app/requirements.txt
 
-# CMD sleep infinity
-
-# SPECIFIC QUEUE HERE
-CMD  /bin/sh image_builder_command.sh
+CMD  /bin/sh dev_entrypoint.sh

@@ -261,7 +261,10 @@ class OCIImageBuilder:
     def build(self):
         
         command = [
-                "buildah", "bud", 
+                "sudo", 
+                "buildah", 
+                "bud",
+                "--isolation", "chroot", 
                 '-t',
                 self.get_image_tag(),
                 "-f", self.dockerfile_path,
@@ -269,14 +272,14 @@ class OCIImageBuilder:
             ]
 
         if self.force_build:
-            command.insert(2, '--no-cache')
+            command.insert(5, '--no-cache')
 
         exec_command(command)
 
     def push_to_registry(self):
 
         login_command = [
-               "buildah", 
+               "sudo", "buildah", 
                "login", 
                "--tls-verify=false", 
                f"--username={env.IMAGE_REGISTRY_USER}", 
@@ -287,20 +290,20 @@ class OCIImageBuilder:
 
         exec_command(login_command)
 
-        push_command = ["buildah", "push", "--tls-verify=false",  self.get_image_tag()]
+        push_command = ["sudo", "buildah", "push", "--tls-verify=false",  self.get_image_tag()]
 
         exec_command(push_command)
 
     def clean_up(self):
         
         remove_built_image_command = [
-            "buildah", "rmi", self.get_image_tag()
+            "sudo", "buildah", "rmi", self.get_image_tag()
         ]
 
         exec_command(remove_built_image_command)
 
         cleanup_command = [
-            "buildah", "rmi", "-p"
+            "sudo", "buildah", "rmi", "-p"
         ]
 
         exec_command(cleanup_command)
@@ -491,7 +494,7 @@ class DispachWkubeTask():
         server = job_secrets.get('ACC_WKUBE_REGISTRY_SERVER')
         username = job_secrets.get('ACC_WKUBE_REGISTRY_USERNAME')
         password = job_secrets.get('ACC_WKUBE_REGISTRY_PASSWORD')
-        email = job_secrets.get('ACC_WKUBE_GIT_PASSWORD')
+        email = job_secrets.get('ACC_WKUBE_REGISTRY_EMAIL')
 
         if server and username and password:
 

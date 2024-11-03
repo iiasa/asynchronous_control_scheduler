@@ -1,11 +1,38 @@
-FROM python:3.11.2
+FROM ubuntu:22.04
 
-WORKDIR /app
+ENV GID=99
+ENV UID=1000
 
-COPY ./requirements.txt /app/requirements.txt
+RUN apt update && \
+    apt install -y sudo pkg-config cmake libtool autoconf python3-pip git && \
+    addgroup --gid $GID nonroot && \
+    adduser --uid $UID --gid $GID --disabled-password --gecos "" nonroot && \
+    echo 'nonroot ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
-RUN pip install -r /app/requirements.txt
+RUN apt install -y buildah skopeo slirp4netns
+
+RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
+
+
+RUN rm -rf /etc/subuid
+
+RUN rm -rf /etc/subgid
+
+RUN echo "nonroot:100000:65536" | tee -a /etc/subuid /etc/subgid
+
+USER nonroot
+
+RUN mkdir /home/nonroot/app
+
+WORKDIR /home/nonroot/app
+
+RUN chmod -R 755 /home/nonroot/app
+
+COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.txt
+
+RUN pip3 install --upgrade pip
+RUN pip3 install -r /home/nonroot/app/requirements.txt
 
 COPY . .
 
-CMD celery -A acc_worker.acc_native_jobs worker --loglevel=INFO --concurrency=8
+CMD  ~/.local/bin/celery -A acc_worker.acc_native_jobs worker -B --loglevel=INFO
