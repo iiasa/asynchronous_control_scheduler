@@ -18,7 +18,7 @@ from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
 from celery import current_task
 
-from kubernetes.dynamic.exceptions import NotFoundError
+from kubernetes.dynamic.exceptions import NotFoundError, ConflictError
 
 from accli import AjobCliService
 
@@ -370,6 +370,12 @@ class DispachWkubeTask():
             )
         )
 
+        kube_config = client.Configuration().get_default_copy()
+
+        kube_config.verify_ssl = False
+
+        client.Configuration.set_default(kube_config)
+
         v1 = client.CoreV1Api()
 
         return v1
@@ -628,8 +634,23 @@ class DispachWkubeTask():
 
         # Create the Job
         batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
-        created_job = batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
+        
+        created_job = None
 
+        while not created_job:
+
+            try:
+                print("Creating job")
+                created_job = batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
+            except ConflictError:
+                print("Deleting conflicting job.")
+                delete_options = {
+                    'apiVersion': 'v1',
+                    'kind': 'DeleteOptions',
+                    'propagationPolicy': 'Foreground'
+                }
+                batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, body=delete_options)
+                time.sleep(5)
 
 
         if created_job:
