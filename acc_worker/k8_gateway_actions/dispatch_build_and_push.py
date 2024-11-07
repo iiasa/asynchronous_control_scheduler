@@ -687,19 +687,17 @@ class DispachWkubeTask():
     def monitor_pod(self, pod_name, job_name, namespace):
         core_v1_api = self.api_cli.resources.get(api_version='v1', kind='Pod')
     
-        c = 0
+        
         while True:
             
             pod = core_v1_api.get(name=pod_name, namespace=namespace)
             phase = pod['status']['phase']
             print(f"Pod {pod_name} is in phase {phase}")
             
-            if phase == 'Pending':
-                c += 1
-            else:
+            if phase in ['Succeeded', 'Running']:
                 break
 
-            if c > 6:
+            if phase in ['Failed']:
                 # Delete job here
                 batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
                 delete_options = {
@@ -708,9 +706,7 @@ class DispachWkubeTask():
                     'propagationPolicy': 'Foreground'
                 }
                 batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, body=delete_options)
-                current_task.retry(
-                    countdown=60
-                )
+                current_task.retry()
 
             time.sleep(5)
 
