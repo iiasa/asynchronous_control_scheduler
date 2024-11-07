@@ -20,7 +20,8 @@ def delete_pvc(pvc_name):
         # Delete the PVC
         pvc_resource.delete(
             name=pvc_name,
-            namespace=env.WKUBE_K8_NAMESPACE
+            namespace=env.WKUBE_K8_NAMESPACE,
+            grace_period_seconds=0
         )
         print(f"PVC '{pvc_name}' in namespace '{env.WKUBE_K8_NAMESPACE}' deleted successfully.")
     except Exception as e:
