@@ -33,6 +33,6 @@ COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.t
 RUN pip3 install --upgrade pip
 RUN pip3 install -r /home/nonroot/app/requirements.txt
 
-COPY . .
+COPY --chown=nonroot:nonroot . .
 
 CMD  ~/.local/bin/celery -A acc_worker.acc_native_jobs worker -B --loglevel=INFO

@@ -16,8 +16,8 @@ RUN apt install -y buildah skopeo slirp4netns
 
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
 
-# ENV STORAGE_DRIVER=vfs
-ENV BUILDAH_ISOLATION=chroot
+#ENV STORAGE_DRIVER=vfs
+#ENV BUILDAH_ISOLATION=chroot
 
 RUN rm -rf /etc/subuid
 
