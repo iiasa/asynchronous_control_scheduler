@@ -440,8 +440,7 @@ class DispachWkubeTask():
                 return None
         except NotFoundError:
             return None
-    
-    def 
+     
     def get_or_create_cache_pvc(self):
        
         pvc = self.get_pvc_details()
