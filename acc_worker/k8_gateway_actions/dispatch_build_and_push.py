@@ -18,6 +18,8 @@ from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
 from celery import current_task
 
+from acc_worker.k8_gateway_actions.cleanup_tasks import delete_pvc
+
 from kubernetes.dynamic.exceptions import NotFoundError, ConflictError
 
 from accli import AjobCliService
