@@ -426,26 +426,44 @@ class DispachWkubeTask():
             force_build=self.kwargs['force_build']
         )
     
-    def pvc_exists(self):
+    def get_pvc_details(self):
 
         try:
-        
+            
             pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim').get(
                 namespace=env.WKUBE_K8_NAMESPACE, name=self.kwargs['pvc_id'])
             if pvc:
                 print(f"PVC {self.kwargs['pvc_id']} exists in namespace {env.WKUBE_K8_NAMESPACE}.")
-                return True
+                return pvc
             else:
                 print(f"PVC {self.kwargs['pvc_id']} does not exist in namespace {env.WKUBE_K8_NAMESPACE}.")
-                return False
+                return None
         except NotFoundError:
-            return False
+            return None
     
-    
+    def 
     def get_or_create_cache_pvc(self):
        
-        if self.pvc_exists():
-            return
+        pvc = self.get_pvc_details()
+
+        if pvc:
+            phase = pvc.get('status', {}).get('phase', 'Unknown')
+
+            if not self.kwargs['parent_job_id']:
+                delete_pvc(self.kwargs['pvc_id'])
+            else:
+                while phase not in ['Bound']:
+                    if phase == 'Lost':
+                        raise ValueError("Something unexpected happend. Existing PVC got lost may be because of underlying infrastructure.")
+                    
+                    print(f"Existing PVC: {self.kwargs['pvc_id']}: Current phase: {phase}")
+                    print(f"Waiting for existing pvc: {self.kwargs['pvc_id']} to get bound to PV.")
+                    
+                    time.sleep(5)
+                    phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+
+                return
+
 
         pvc_manifest = {
             "apiVersion": "v1",
@@ -470,6 +488,19 @@ class DispachWkubeTask():
         created_pvc = v1_pvc.create(namespace=env.WKUBE_K8_NAMESPACE, body=pvc_manifest)
 
         print("Created PVC:", created_pvc)
+
+        created_pvc_phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+        while created_pvc_phase not in ['Bound']:
+            if created_pvc_phase == 'Lost':
+                raise ValueError("Something unexpected happend. Created PVC got lost may be because of underlying infrastructure.")
+            
+            print(f"New PVC: {self.kwargs['pvc_id']}: Current phase: {created_pvc_phase}")
+            print(f"Waiting for new pvc: {self.kwargs['pvc_id']} to get bound to PV.")
+            
+            time.sleep(5)
+            created_pvc_phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+
+        return
 
     # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
     def get_node_name(self):
