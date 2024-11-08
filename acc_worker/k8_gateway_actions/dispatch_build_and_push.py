@@ -450,7 +450,7 @@ class DispachWkubeTask():
         if pvc:
             phase = pvc.get('status', {}).get('phase', 'Unknown')
 
-            if not self.kwargs['parent_job_id']:
+            if self.kwargs['is_first_pipeline_job']:
                 delete_pvc(self.kwargs['pvc_id'])
             else:
                 while phase not in ['Bound']:
@@ -474,7 +474,7 @@ class DispachWkubeTask():
             },
             "spec": {
                 "accessModes": [
-                    "ReadWriteMany"
+                    "ReadWriteOnce"
                 ],
                 "resources": {
                     "requests": {
