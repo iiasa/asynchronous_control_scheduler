@@ -452,6 +452,12 @@ class DispachWkubeTask():
 
             if self.kwargs['is_first_pipeline_job']:
                 delete_pvc(self.kwargs['pvc_id'])
+                while True:
+                    pvc = self.get_pvc_details()
+                    if not pvc:  # PVC is fully deleted
+                        break
+                    print(f"Waiting for existing PVC '{self.kwargs['pvc_id']}' to be fully deleted...")
+                    time.sleep(5)
             else:
                 while phase not in ['Bound']:
                     if phase == 'Lost':
