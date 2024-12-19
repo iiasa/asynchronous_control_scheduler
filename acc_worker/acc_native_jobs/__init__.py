@@ -276,15 +276,16 @@ def delete_pvc_task(pvc_name):
 @handle_soft_time_limit
 def verify_csv_regional_timeseries(*args, **kwargs):
 
-    selected_files_ids = kwargs.get['selected_files_ids']
-    selected_filenames = kwargs.get['selected_filenames']
-    dataset_template_id = kwargs.get['dataset_template_id']
+    selected_files_ids = kwargs['selected_files_ids']
+    selected_filenames = kwargs['selected_filenames']
+    dataset_template_id = kwargs['dataset_template_id']
 
     for index in range(len(selected_files_ids)):
         filename = selected_filenames[index]
         bucket_object_id = selected_files_ids[index]
+        
         print(f"_____________Validating file: {filename} _____________")
-        print(f"______________________________________________________")
+   
         csv_regional_timeseries_verification_service = CsvRegionalTimeseriesVerificationService(
             bucket_object_id=bucket_object_id,
             dataset_template_id=dataset_template_id,
@@ -292,19 +293,20 @@ def verify_csv_regional_timeseries(*args, **kwargs):
         )
         csv_regional_timeseries_verification_service()
 
+        print(f"_____________DONE: Validating file: {filename} _____________")
+
 @app.task(
         name='acc_native_jobs.merge_csv_regional_timeseries'
     )
 @capture_log
 @handle_soft_time_limit
 def merge_csv_regional_timeseries(*args, **kwargs):
-    selected_filenames = kwargs.get['selected_filenames']
+    selected_filenames = kwargs['selected_filenames']
 
     print(f"_____________Merging following files: {selected_filenames} _____________")
-    print(f"________________________________________________________________________")
     
     merged_filename = kwargs.get('merged_filename')
-    bucket_object_id_list = kwargs.get['selected_files_ids']
+    bucket_object_id_list = kwargs['selected_files_ids']
     csv_regional_timeseries_merge_service = CSVRegionalTimeseriesMergeService(
         merged_filename=merged_filename,
         bucket_object_id_list=bucket_object_id_list,
