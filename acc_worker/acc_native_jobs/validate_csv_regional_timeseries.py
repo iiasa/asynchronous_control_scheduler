@@ -71,7 +71,7 @@ class CsvRegionalTimeseriesVerificationService():
 
     def init_validation_metadata(self):
         self.validation_metadata = {
-            f"{self.time_dimension.lower()}_meta": {
+            f"{self.time_dimension}_meta": {
                 "min_value": float('+inf'),
                 "max_value": float('-inf')
             }
@@ -131,19 +131,19 @@ class CsvRegionalTimeseriesVerificationService():
             if key in [self.variable_dimension, self.unit_dimension]:
                 continue
 
-            if key == self.time_dimension.lower():
+            if key == self.time_dimension:
                 if float(row[key]) < self.validation_metadata[
-                    f"{self.time_dimension.lower()}_meta"
+                    f"{self.time_dimension}_meta"
                 ]["min_value"]:
                     self.validation_metadata[
-                        f"{self.time_dimension.lower()}_meta"
+                        f"{self.time_dimension}_meta"
                     ]["min_value"] = float(row[key])
 
                 if float(row[key]) > self.validation_metadata[
-                    f"{self.time_dimension.lower()}_meta"
+                    f"{self.time_dimension}_meta"
                 ]["max_value"]:
                     self.validation_metadata[
-                        f"{self.time_dimension.lower()}_meta"
+                        f"{self.time_dimension}_meta"
                     ]["max_value"] = float(row[key])
 
             if key == self.value_dimension:
@@ -198,13 +198,13 @@ class CsvRegionalTimeseriesVerificationService():
 
 
                     if condition == 'value_equals':
-                        if lhs.lower() != rhs.lower():
+                        if lhs != rhs:
                             raise ValueError(
                                 f'{lhs} in {row_key} column must be equal to {rhs}.'
                             )
                     
                     if condition == 'is_subset_of_map':
-                        if not lhs.lower() in rhs.lower():
+                        if not lhs in rhs:
                             raise ValueError(
                                 f'{lhs} in {row_key} column must be member of {rhs}.'
                             )
@@ -213,7 +213,7 @@ class CsvRegionalTimeseriesVerificationService():
     def get_validated_rows(self):
         with open(self.temp_downloaded_filepath) as csvfile:
             reader = csv.DictReader(
-                lower_rows(csvfile), 
+                csvfile, 
                 fieldnames=self.csv_fieldnames, 
                 restkey='restkeys', 
                 restval='restvals'
