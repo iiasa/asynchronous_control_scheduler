@@ -683,6 +683,10 @@ class DispachWkubeTask():
                                 "persistentVolumeClaim": {
                                     "claimName": self.kwargs['pvc_id']  # Name of the PVC to mount
                                 }
+                            },
+                            {
+                                "name": f"{job_name}-agent-volume",
+                                "emptyDir": {}
                             }
                         ],
                         "affinity": {
