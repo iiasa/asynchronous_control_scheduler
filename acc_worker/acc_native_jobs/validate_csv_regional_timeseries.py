@@ -12,6 +12,46 @@ from jsonschema.exceptions import ValidationError, SchemaError
 
 env = get_environment_variables()
 
+
+class CaseInsensitiveDict(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.update(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key.lower(), value)
+
+    def __getitem__(self, key):
+        return super().__getitem__(key.lower())
+
+    def __delitem__(self, key):
+        super().__delitem__(key.lower())
+
+    def __contains__(self, key):
+        return super().__contains__(key.lower())
+
+    def get(self, key, default=None):
+        return super().get(key.lower(), default)
+
+    def pop(self, key, default=None):
+        return super().pop(key.lower(), default)
+
+    def update(self, *args, **kwargs):
+        for k, v in dict(*args, **kwargs).items():
+            self[k] = v
+
+    def setdefault(self, key, default=None):
+        return super().setdefault(key.lower(), default)
+
+# Example usage:
+case_insensitive_dict = CaseInsensitiveDict({'A': 1, 'b': 2})
+print(case_insensitive_dict['a'])  # Output: 1
+print(case_insensitive_dict['B'])  # Output: 2
+
+case_insensitive_dict['C'] = 3
+print(case_insensitive_dict['c'])  # Output: 3
+
+
 def lower_rows(iterator):
     # return itertools.chain([next(iterator).lower()], iterator)
     for item in iterator:
@@ -109,6 +149,7 @@ class CsvRegionalTimeseriesVerificationService():
 
 
     def validate_row_data(self, row):
+        row = CaseInsensitiveDict(row)
         try:
             jsonschema_validate(
                 self.rules.get('root'),
@@ -213,7 +254,7 @@ class CsvRegionalTimeseriesVerificationService():
     def get_validated_rows(self):
         with open(self.temp_downloaded_filepath) as csvfile:
             reader = csv.DictReader(
-                csvfile, 
+                lower_rows(csvfile), 
                 fieldnames=self.csv_fieldnames, 
                 restkey='restkeys', 
                 restval='restvals'

@@ -1,0 +1,7 @@
+FROM alpine:latest
+
+# Install curl
+RUN apk add --no-cache curl
+
+# Default command (optional, replace with your script)
+CMD ["curl", "--version"]
