@@ -61,6 +61,7 @@ class BaseStack(str, enum.Enum):
     job or project folder.
     """
     PYTHON3_7 = 'PYTHON3_7'
+    R4_4 = 'R4_4'
 
 def exec_command(command, raise_exception=True):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -148,6 +149,8 @@ class OCIImageBuilder:
 
         if username and password:
             return f"https://{username}:{password}@{self.git_repo.split('https://')[1]}"
+        else:
+            return self.git_repo
         # else:
         #     if self.git_repo == env.FOLDER_JOB_REPO_URL:
         #         raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
