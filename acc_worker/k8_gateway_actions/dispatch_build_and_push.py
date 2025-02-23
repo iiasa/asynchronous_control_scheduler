@@ -30,7 +30,7 @@ from .registries import DEFAULT_REGISTRIES, create_user_registry_secret
 
 env = get_environment_variables()
 
-FOLDER_JOB_REPO_URL = 'https://github.com/IIASA-Accelerator/wkube-job.git'
+# FOLDER_JOB_REPO_URL = 'https://github.com/IIASA-Accelerator/wkube-job.git'
 
 
 def escape_character(input_string, char_to_escape):
@@ -148,9 +148,9 @@ class OCIImageBuilder:
 
         if username and password:
             return f"https://{username}:{password}@{self.git_repo.split('https://')[1]}"
-        else:
-            if self.git_repo == env.FOLDER_JOB_REPO_URL:
-                raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
+        # else:
+        #     if self.git_repo == env.FOLDER_JOB_REPO_URL:
+        #         raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
 
     def pull_files_from_git(self):
         command = [

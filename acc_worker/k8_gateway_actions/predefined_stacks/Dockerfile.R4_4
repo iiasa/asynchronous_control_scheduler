@@ -1,0 +1,26 @@
+# Use the official R 4.4 image from Rocker
+FROM rocker/r-ver:4.4
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install necessary system dependencies
+RUN apt-get update && apt-get install -y \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    pandoc \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory to /code
+WORKDIR /code
+
+# Copy the local files into the container
+COPY . /code
+
+# If init.R exists, run it at build time
+RUN if [ -f /code/init.R ]; then Rscript /code/init.R; fi
+
+# Default command: start an interactive R session
+CMD ["R"]
