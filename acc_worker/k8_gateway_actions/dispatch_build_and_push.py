@@ -559,7 +559,7 @@ class DispachWkubeTask():
 
         init_container_shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.3-linux-amd/wagt"; binary_file="/mnt/agent/wagt"; (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" && echo "Wagt downloaded successfully with curl.") || (command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file" && echo "Wagt downloaded successfully with wget.") || { echo "Error: Neither curl nor wget is available."; exit 1; }'
 
-        main_container_shell_script = 'binary_file="/mnt/agent/wagt"; [ ! -f "$binary_file" ] && { echo "Error: Binary file not found. Please download it first."; exit 1; }; chmod +x "$binary_file"; echo "Executing binary..."; ./"$binary_file" "%s";echo "Wagt execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        main_container_shell_script = 'binary_file="/mnt/agent/wagt"; [ ! -f "$binary_file" ] && { echo "Error: Binary file not found. Please download it first."; exit 1; }; chmod +x "$binary_file"; echo "Executing binary..."; "$binary_file" "%s";echo "Wagt execution completed."' % (escape_character(self.kwargs['command'], '"'))
 
         init_container_command = ["/bin/sh", "-c", init_container_shell_script]
         
@@ -633,7 +633,7 @@ class DispachWkubeTask():
                         }
                     },
                     "spec": {
-                        "init_containers": [
+                        "initContainers": [
                             {
                                 "name": "wkube-agent-puller",
                                 "image": "registry.iiasa.ac.at/accelerator/wkube-agent-puller:latest",
@@ -683,6 +683,10 @@ class DispachWkubeTask():
                                 "persistentVolumeClaim": {
                                     "claimName": self.kwargs['pvc_id']  # Name of the PVC to mount
                                 }
+                            },
+                            {
+                                "name": f"{job_name}-agent-volume",
+                                "emptyDir": {}
                             }
                         ],
                         "affinity": {
