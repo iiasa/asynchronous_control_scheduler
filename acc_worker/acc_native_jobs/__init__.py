@@ -308,7 +308,7 @@ def merge_csv_regional_timeseries(*args, **kwargs):
     merged_filename = kwargs.get('merged_filename')
     bucket_object_id_list = kwargs['selected_files_ids']
     csv_regional_timeseries_merge_service = CSVRegionalTimeseriesMergeService(
-        merged_filename=merged_filename,
+        filename=merged_filename,
         bucket_object_id_list=bucket_object_id_list,
         job_token=kwargs.get('job_token')
     )
