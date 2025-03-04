@@ -1,0 +1,9 @@
+FROM python:3.11.2
+
+WORKDIR /
+
+RUN pip install aiohttp aiofiles git+https://github.com/iiasa/accli.git
+
+COPY ./pretask.py pretask.py
+
+CMD python pretask.py

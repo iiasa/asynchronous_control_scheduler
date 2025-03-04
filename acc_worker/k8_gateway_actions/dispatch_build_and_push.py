@@ -560,17 +560,18 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        init_container_shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.3-linux-amd/wagt"; binary_file="/mnt/agent/wagt"; (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" && echo "Wagt downloaded successfully with curl.") || (command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file" && echo "Wagt downloaded successfully with wget.") || { echo "Error: Neither curl nor wget is available."; exit 1; }'
+        init_container_shell_script = 'mkdir -p /mnt/agent && binary_file="/mnt/agent/wagt" && binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.4-linux-amd/wagt" && (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" || command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file") && chmod +x "$binary_file" && echo "Executing init task..." && "$binary_file" PRE "python pretask.py"'
 
-        main_container_shell_script = 'binary_file="/mnt/agent/wagt"; [ ! -f "$binary_file" ] && { echo "Error: Binary file not found. Please download it first."; exit 1; }; chmod +x "$binary_file"; echo "Executing binary..."; "$binary_file" "%s";echo "Wagt execution completed."' % (escape_character(self.kwargs['command'], '"'))
+        main_container_shell_script = 'binary_file="/mnt/agent/wagt" && [ -f "$binary_file" ] && chmod +x "$binary_file" && echo "Executing binary..." && ./"$binary_file" MAIN "bash command" || { echo "Error: Binary file not found. Please download it first."; exit 1; }'
 
+        post_container_shell_script = 'binary_file="/mnt/agent/wagt" && [ -f "$binary_file" ] && chmod +x "$binary_file" && echo "Executing cleanup..." && ./"$binary_file" POST "python posttask.py" || { echo "Error: Binary file not found. Please download it first."; exit 1; }'
+        
         init_container_command = ["/bin/sh", "-c", init_container_shell_script]
         
         main_container_command = ["/bin/sh", "-c", main_container_shell_script]
+
+        post_container_command = ["/bin/sh", "-c", post_container_shell_script]
         
-        # shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.3-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))
-        
-        # command = ["/bin/sh", "-c", shell_script]
 
         # job_name = self.kwargs['job_id']
         job_name = current_task.request.id
@@ -638,20 +639,23 @@ class DispachWkubeTask():
                     "spec": {
                         "initContainers": [
                             {
-                                "name": "wkube-agent-puller",
-                                "image": "registry.iiasa.ac.at/accelerator/wkube-agent-puller:latest",
+                                "name": f"init-{job_name}",
+                                "image": "registry.iiasa.ac.at/accelerator/wkube-task-init:latest",
                                 "command": init_container_command,
                                 "volumeMounts": [
                                     {
                                         "name": f"{job_name}-agent-volume",
-                                        "mountPath": "/mnt/agent"
-                                    }
-                                ]
-                            }
-                        ],
-                        "containers": [
+                                        "mountPath": "/"
+                                    },
+                                    {
+                                        "name": self.kwargs['pvc_id'],
+                                        "mountPath": "/mnt/data"
+                                    },
+                                ],
+                                "env": env_vars
+                            },
                             {
-                                "name": job_name,
+                                "name": f"main-{job_name}",
                                 "image": self.kwargs['docker_image'],
                                 "command": main_container_command,
                                 "resources": {
@@ -668,15 +672,33 @@ class DispachWkubeTask():
                                 },
                                 "volumeMounts": [
                                     {
-                                        "name": self.kwargs['pvc_id'],
-                                        "mountPath": "/mnt/data"
+                                        "name": f"{job_name}-agent-volume",
+                                        "mountPath": "/"
                                     },
                                     {
-                                        "name": f"{job_name}-agent-volume",
-                                        "mountPath": "/mnt/agent"
+                                        "name": self.kwargs['pvc_id'],
+                                        "mountPath": "/mnt/data"
                                     }
                                 ],
                                 
+                                "env": env_vars
+                            }
+                        ],
+                        "containers": [
+                            {
+                                "name": f"post-{job_name}",
+                                "image": "registry.iiasa.ac.at/accelerator/wkube-task-post:latest",
+                                "command": post_container_command,
+                                "volumeMounts": [
+                                    {
+                                        "name": f"{job_name}-agent-volume",
+                                        "mountPath": "/"
+                                    },
+                                    {
+                                        "name": self.kwargs['pvc_id'],
+                                        "mountPath": "/mnt/data"
+                                    },
+                                ],
                                 "env": env_vars
                             }
                         ],
