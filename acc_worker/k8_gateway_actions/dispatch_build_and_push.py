@@ -560,10 +560,36 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        init_container_shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.0.1-linux-amd/wagt"; binary_file="/mnt/agent/wagt"; (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" && echo "Wagt downloaded successfully with curl.") || (command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file" && echo "Wagt downloaded successfully with wget.") || { echo "Error: Neither curl nor wget is available."; exit 1; }'
+        init_container_shell_script = '''
+            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.0.2-linux-amd/wagt"; 
+            binary_file="/mnt/agent/wagt"; 
+            (
+                command -v curl &>/dev/null && 
+                curl -sSL "$binary_url" -o "$binary_file" && 
+                echo "Wagt downloaded successfully with curl."
+            ) || (
+                command -v wget &>/dev/null && 
+                wget -q "$binary_url" -O "$binary_file" && 
+                echo "Wagt downloaded successfully with wget."
+            ) || { 
+                echo "Error: Neither curl nor wget is available."; 
+                exit 1; 
+            }
+        '''
 
-        main_container_shell_script = 'binary_file="/mnt/agent/wagt"; [ ! -f "$binary_file" ] && { echo "Error: Binary file not found. Please download it first."; exit 1; }; chmod +x "$binary_file"; echo "Executing binary..."; "$binary_file" "%s";echo "Wagt execution completed."' % (escape_character(self.kwargs['command'], '"'))
-
+        main_container_shell_script = '''
+            binary_file="/mnt/agent/wagt"; 
+            [ ! -f "$binary_file" ] && { 
+                echo "Error: Binary file not found. Please download it first."; 
+                sleep 10; 
+                exit 1; 
+            }; 
+            chmod +x "$binary_file"; 
+            echo "Executing binary..."; 
+            "$binary_file" "%s"; 
+            echo "Wagt execution completed."; 
+            sleep 10;
+        ''' % (escape_character(self.kwargs['command'], '"'))
         init_container_command = ["/bin/sh", "-c", init_container_shell_script]
         
         main_container_command = ["/bin/sh", "-c", main_container_shell_script]
@@ -751,8 +777,8 @@ class DispachWkubeTask():
             raise ValueError("Exacly one pod should be present")
 
 
-        phase = self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
-        self.print_pod_events(pods[0], env.WKUBE_K8_NAMESPACE, phase)
+        self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
+        self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
        
 
     def monitor_pod(self, pod_name, job_name, namespace):
@@ -779,30 +805,24 @@ class DispachWkubeTask():
                 batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, body=delete_options)
                 current_task.retry()
 
-            time.sleep(5)
+            time.sleep(3)
 
         return phase
 
 
-    def print_pod_events(self, pod_name, namespace, phase):
-        time.sleep(6)
-        events_v1_api = self.api_cli.resources.get(api_version='v1', kind='Event')
-        
-        events = events_v1_api.get(namespace=namespace, field_selector=f'involvedObject.name={pod_name}')
-        print("** Job pod events\n")
-        for event in events['items']:
-            print(f"Event for Pod {pod_name}: {event['message']}")
+    def print_pod_logs(self, pod_name, namespace):
+        logs = None
+        count = 0
+        while count < 2:  
+            core_v1_api = self.get_core_v1_api()
+            try:
+                logs = core_v1_api.read_namespaced_pod_log(name=pod_name, namespace=env.WKUBE_K8_NAMESPACE)
+            except client.exceptions.ApiException as e:
+                print(f"An error occurred while fetching logs for pod {pod_name}: {e}")
 
-        print("** Agent non captured logs")
-        print("============================")
+                time.sleep(3)
+                c = c + 1
+            
 
-        core_v1_api = self.get_core_v1_api()
-
-        try:
-            logs = core_v1_api.read_namespaced_pod_log(name=pod_name, namespace=env.WKUBE_K8_NAMESPACE)
-            print(logs)
-        except client.exceptions.ApiException as e:
-            print(f"An error occurred while fetching logs for pod {pod_name}: {e}")
-
-        if phase == 'Failed':
-            raise ValueError("Failed during preparing and starting k8s job.")
+        print("**** Initial logs -- logs not captured by wkube agent ****")
+        print(logs)
