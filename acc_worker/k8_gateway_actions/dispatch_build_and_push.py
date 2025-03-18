@@ -560,7 +560,7 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        init_container_shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.0.0-linux-amd/wagt"; binary_file="/mnt/agent/wagt"; (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" && echo "Wagt downloaded successfully with curl.") || (command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file" && echo "Wagt downloaded successfully with wget.") || { echo "Error: Neither curl nor wget is available."; exit 1; }'
+        init_container_shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.0.1-linux-amd/wagt"; binary_file="/mnt/agent/wagt"; (command -v curl &>/dev/null && curl -sSL "$binary_url" -o "$binary_file" && echo "Wagt downloaded successfully with curl.") || (command -v wget &>/dev/null && wget -q "$binary_url" -O "$binary_file" && echo "Wagt downloaded successfully with wget.") || { echo "Error: Neither curl nor wget is available."; exit 1; }'
 
         main_container_shell_script = 'binary_file="/mnt/agent/wagt"; [ ! -f "$binary_file" ] && { echo "Error: Binary file not found. Please download it first."; exit 1; }; chmod +x "$binary_file"; echo "Executing binary..."; "$binary_file" "%s";echo "Wagt execution completed."' % (escape_character(self.kwargs['command'], '"'))
 
