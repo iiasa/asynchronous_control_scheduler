@@ -820,8 +820,8 @@ class DispachWkubeTask():
             except client.exceptions.ApiException as e:
                 print(f"An error occurred while fetching logs for pod {pod_name}: {e}")
 
-                time.sleep(3)
-                c = c + 1
+            time.sleep(3)
+            count = count + 1
             
 
         print("**** Initial logs -- logs not captured by wkube agent ****")
