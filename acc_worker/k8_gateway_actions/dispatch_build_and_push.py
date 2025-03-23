@@ -561,7 +561,7 @@ class DispachWkubeTask():
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
         init_container_shell_script = '''
-            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.0.2-linux-amd/wagt"; 
+            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.1.2-linux-amd/wagt"; 
             binary_file="/mnt/agent/wagt"; 
             (
                 command -v curl &>/dev/null && 
@@ -820,8 +820,8 @@ class DispachWkubeTask():
             except client.exceptions.ApiException as e:
                 print(f"An error occurred while fetching logs for pod {pod_name}: {e}")
 
-                time.sleep(3)
-                c = c + 1
+            time.sleep(3)
+            count = count + 1
             
 
         print("**** Initial logs -- logs not captured by wkube agent ****")
