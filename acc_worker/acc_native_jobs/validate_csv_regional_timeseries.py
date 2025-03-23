@@ -264,6 +264,10 @@ class CsvRegionalTimeseriesVerificationService():
                 row.pop('restkeys', None)
                 row.pop('restvals', None)
 
+                if not any(value.strip() for value in row.values()):
+                    print("Empty row detected, skipping...")
+                    continue
+
                 try:
                     row = self.validate_row_data(row)
                 except Exception as err:
