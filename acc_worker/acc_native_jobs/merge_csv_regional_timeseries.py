@@ -2,6 +2,8 @@ import io
 import os
 import json
 import uuid
+import pyarrow as pa
+import pyarrow.parquet as pq
 from typing import Callable, TypedDict, Iterator
 from accli import AjobCliService
 from dateutil.parser import parse as parse_date
@@ -28,6 +30,8 @@ class CSVRegionalTimeseriesMergeService:
             server_url=env.ACCELERATOR_CLI_BASE_URL,
             verify_cert=False
         )
+
+        self.template_rules = None
 
         self.output_filename = filename
 
@@ -107,6 +111,8 @@ class CSVRegionalTimeseriesMergeService:
         dataset_template_details = self.project_service.get_dataset_template_details(first_validation_details['dataset_template_id'])
 
         rules =  dataset_template_details.get('rules')
+
+        self.template_rules = rules
         
         time_dimension = rules['root_schema_declarations']['time_dimension']
 
@@ -142,6 +148,42 @@ class CSVRegionalTimeseriesMergeService:
         
         return first_validation_metadata, first_validation_details['dataset_template_id']
 
+    
+    def create_associated_parquet(self, merged_filepath):
+        chunksize = 100_000
+
+        value_dimension = self.rules['root_schema_declarations']['value_dimension']
+        time_dimension = self.rules['root_schema_declarations']['time_dimension']
+
+        parquet_writer = None
+
+        for i, chunk in enumerate(pd.read_csv(merged_filepath, chunksize=chunksize)):
+            
+            if value_dimension in chunk.columns:
+                chunk[value_dimension] = chunk[value_dimension].astype('float32')
+
+            if time_dimension in chunk.columns:
+                chunk[time_dimension] = chunk[time_dimension].astype('int32')
+
+            for col in chunk.columns:
+                if col != value_dimension:
+                    chunk[col] = chunk[col].astype('category')
+
+            table = pa.Table.from_pandas(chunk, preserve_index=False)
+
+            if parquet_writer is None:
+                parquet_writer = pq.ParquetWriter(
+                    self.temp_validated_filepath + '.parquet',
+                    table.schema,
+                    compression='snappy'
+                )
+
+            parquet_writer.write_table(table)
+
+        # Finalize writer
+        if parquet_writer:
+            parquet_writer.close()
+
 
     def __call__(self):
         self.check_input_files()
@@ -176,9 +218,18 @@ class CSVRegionalTimeseriesMergeService:
         
         validation_metadata, dataset_template_id = self.get_merged_validated_metadata()
 
+
+        self.create_associated_parquet(first_downloaded_filepath)
+
         with open(first_downloaded_filepath, "rb") as file_stream:
             uploaded_bucket_object_id = self.project_service.add_filestream_as_job_output(
                 f"{self.output_filename}.csv",
+                file_stream,
+            )
+
+        with open(f"{first_downloaded_filepath}.parquet", "rb") as file_stream:
+            uploaded_parquet_bucket_object_id = self.project_service.add_filestream_as_validation_supporter(
+                f"{self.output_filename}.parquet",
                 file_stream,
             )
 
@@ -195,12 +246,15 @@ class CSVRegionalTimeseriesMergeService:
         self.project_service.register_validation(
             uploaded_bucket_object_id,
             dataset_template_id,
-            validation_metadata
+            validation_metadata,
+            [uploaded_parquet_bucket_object_id]
         )
         print('Merge complete')
 
         self.delete_local_file(first_downloaded_filepath)
         print('Temporary sorted file deleted')
+        self.delete_local_file(f"{first_downloaded_filepath}.parquet")
+        print('Temporary parquet file deleted')
 
 
           

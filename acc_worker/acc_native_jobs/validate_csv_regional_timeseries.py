@@ -4,6 +4,9 @@ import subprocess
 import csv
 import uuid
 import itertools
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from typing import Optional
 from accli import AjobCliService
 from acc_worker.configs.Environment import get_environment_variables
@@ -64,6 +67,7 @@ class CsvRegionalTimeseriesVerificationService():
         bucket_object_id,
         dataset_template_id,
         job_token,
+        s3_filename,
         csv_fieldnames: Optional[list[str]]=None,
         ram_required=4 * 1024**3,
         disk_required=6 * 1024**3,
@@ -100,6 +104,8 @@ class CsvRegionalTimeseriesVerificationService():
         self.temp_sorted_filepath = (
             f"{self.temp_dir}/{self.temp_sorted_filename}"
         )
+
+        self.s3_filename = s3_filename
 
         self.errors = dict()
     
@@ -325,6 +331,37 @@ class CsvRegionalTimeseriesVerificationService():
     def delete_local_file(self, filepath):
         if os.path.exists(filepath):
             os.remove(filepath)
+
+    def create_associated_parquet(self):
+        chunksize = 100_000
+
+        parquet_writer = None
+
+        for i, chunk in enumerate(pd.read_csv(self.temp_sorted_filepath, chunksize=chunksize)):
+            if self.value_dimension in chunk.columns:
+                chunk[self.value_dimension] = chunk[self.value_dimension].astype('float32')
+
+            if self.time_dimension in chunk.columns:
+               chunk[self.time_dimension] = chunk[self.time_dimension].astype('int32')
+
+            for col in chunk.columns:
+                if col != self.value_dimension:
+                    chunk[col] = chunk[col].astype('category')
+
+            table = pa.Table.from_pandas(chunk, preserve_index=False)
+
+            if parquet_writer is None:
+                parquet_writer = pq.ParquetWriter(
+                    self.temp_sorted_filepath + '.parquet',
+                    table.schema,
+                    compression='snappy'
+                )
+
+            parquet_writer.write_table(table)
+
+        # Finalize writer
+        if parquet_writer:
+            parquet_writer.close()
                 
     def __call__(self):
         self.download_file()
@@ -365,8 +402,17 @@ class CsvRegionalTimeseriesVerificationService():
         self.delete_local_file(self.temp_validated_filepath)
         print('Temporary validated file deleted')
 
+
+        self.create_associated_parquet()
+
         self.replace_file_content(self.temp_sorted_filepath, self.bucket_object_id)
         print('File replaced')
+
+        with open(f"{self.temp_sorted_filepath}.parquet", "rb") as file_stream:
+            uploaded_parquet_bucket_object_id = self.project_service.add_filestream_as_validation_supporter(
+                f"{self.s3_filename}.parquet",
+                file_stream,
+            )
 
         # Monkey patch serializer
         def monkey_patched_json_encoder_default(encoder, obj):
@@ -381,12 +427,15 @@ class CsvRegionalTimeseriesVerificationService():
         self.project_service.register_validation(
             self.bucket_object_id,
             self.dataset_template_id,
-            self.validation_metadata
+            self.validation_metadata,
+            [uploaded_parquet_bucket_object_id]
         )
         print('Validation complete')
 
         print(self.temp_sorted_filepath)
         self.delete_local_file(self.temp_sorted_filepath)
         print('Temporary sorted file deleted')
+        self.delete_local_file(f"{self.temp_sorted_filepath}.parquet")
+        print('Temporary parquet file deleted')
 
    

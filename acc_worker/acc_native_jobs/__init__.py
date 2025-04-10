@@ -289,7 +289,8 @@ def verify_csv_regional_timeseries(*args, **kwargs):
         csv_regional_timeseries_verification_service = CsvRegionalTimeseriesVerificationService(
             bucket_object_id=bucket_object_id,
             dataset_template_id=dataset_template_id,
-            job_token=kwargs.get('job_token')
+            job_token=kwargs.get('job_token'),
+            s3_filename=filename
         )
         csv_regional_timeseries_verification_service()
 
