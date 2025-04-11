@@ -408,9 +408,17 @@ class CsvRegionalTimeseriesVerificationService():
         self.replace_file_content(self.temp_sorted_filepath, self.bucket_object_id)
         print('File replaced')
 
+        
+        s3_parquet_filename = f"{self.s3_filename}.parquet"
+
+        if s3_parquet_filename.startswith("/"):
+            s3_parquet_filename = s3_parquet_filename.split("/")[2:].join('/')
+        else:
+            s3_parquet_filename = s3_parquet_filename.split("/")[1:].join('/')
+        
         with open(f"{self.temp_sorted_filepath}.parquet", "rb") as file_stream:
             uploaded_parquet_bucket_object_id = self.project_service.add_filestream_as_validation_supporter(
-                f"{self.s3_filename}.parquet",
+                s3_parquet_filename,
                 file_stream,
             )
 
