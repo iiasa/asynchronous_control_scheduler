@@ -412,9 +412,9 @@ class CsvRegionalTimeseriesVerificationService():
         s3_parquet_filename = f"{self.s3_filename}.parquet"
 
         if s3_parquet_filename.startswith("/"):
-            s3_parquet_filename = s3_parquet_filename.split("/")[2:].join('/')
+            s3_parquet_filename = '/'.join(s3_parquet_filename.split("/")[2:])
         else:
-            s3_parquet_filename = s3_parquet_filename.split("/")[1:].join('/')
+            s3_parquet_filename = '/'.join(s3_parquet_filename.split("/")[1:])
         
         with open(f"{self.temp_sorted_filepath}.parquet", "rb") as file_stream:
             uploaded_parquet_bucket_object_id = self.project_service.add_filestream_as_validation_supporter(
