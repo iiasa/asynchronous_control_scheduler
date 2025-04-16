@@ -15,6 +15,7 @@ requires-python = ">=3.7"
 dependencies = [
     'celery[librabbitmq]==5.3.4',
     'kubernetes==29.0.0',
+    'pyarrow==19.0.1',
     'accli@git+https://github.com/iiasa/accli.git'
 ]
 classifiers = [
