@@ -561,7 +561,7 @@ class DispachWkubeTask():
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
         init_container_shell_script = '''
-            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.2-linux-amd/wagt"; 
+            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.2.1-linux-amd/wagt"; 
             binary_file="/mnt/agent/wagt"; 
             (
                 command -v curl &>/dev/null && 
