@@ -6,6 +6,7 @@ class AppSetting():
     def __init__(self):
         self.CELERY_BROKER_URL:str = os.environ['CELERY_BROKER_URL']
         self.ACCELERATOR_CLI_BASE_URL: str = os.environ.get('ACCELERATOR_CLI_BASE_URL', 'http://default-cli-base-url/')
+        self.WKUBE_AGENT_PULLER: str = os.environ.get('WKUBE_AGENT_PULLER', 'registry.iiasa.ac.at/accelerator/wkube-agent-puller:latest')
         self.IMAGE_REGISTRY_URL: str = os.environ.get('IMAGE_REGISTRY_URL')
         # This setting is to accomodate registry which supports project name. value eg: 'accelerator/' 
         self.IMAGE_REGISTRY_TAG_PREFIX: str = os.environ.get('IMAGE_REGISTRY_TAG_PREFIX', '') 

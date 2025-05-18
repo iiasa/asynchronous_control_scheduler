@@ -666,7 +666,7 @@ class DispachWkubeTask():
                         "initContainers": [
                             {
                                 "name": "wkube-agent-puller",
-                                "image": "registry.iiasa.ac.at/accelerator/wkube-agent-puller:latest",
+                                "image": env.WKUBE_AGENT_PULLER,
                                 "command": init_container_command,
                                 "volumeMounts": [
                                     {
