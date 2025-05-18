@@ -613,8 +613,8 @@ class DispachWkubeTask():
         env_vars = [
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
-            *[dict(name=key, value=job_conf[key]) for key in job_conf],
-            *[dict(name=key, value=job_secrets[key]) for key in job_secrets],
+            *[dict(name=key, value=str(job_conf[key])) for key in job_conf],
+            *[dict(name=key, value=str(job_secrets[key])) for key in job_secrets],
         ]
 
         # Specify the node name
