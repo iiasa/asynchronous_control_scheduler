@@ -287,18 +287,20 @@ class OCIImageBuilder:
     def build(self):
         
         command = [
-                "sudo", 
-                "buildah", 
-                "bud",
-                "--isolation", "chroot", 
-                '-t',
-                self.get_image_tag,
-                "-f", self.dockerfile_path,
-                self.IMAGE_BUILDING_SITE
-            ]
+            "sudo",
+            "buildah",
+            "bud"
+        ]
 
         if self.force_build:
-            command.insert(5, '--no-cache')
+            command.append("--no-cache")
+
+        command += [
+            "--isolation", "chroot",
+            "-t", self.get_image_tag,
+            "-f", self.dockerfile_path,
+            self.IMAGE_BUILDING_SITE
+        ]
 
         exec_command(command)
 
@@ -316,7 +318,7 @@ class OCIImageBuilder:
 
         exec_command(login_command)
 
-        push_command = ["sudo", "buildah", "push", "--tls-verify=false",  self.get_image_tag]
+        push_command = ["sudo", "buildah", "push", "--tls-verify=false", "--remove-signatures",  self.get_image_tag]
 
         exec_command(push_command)
 

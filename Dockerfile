@@ -9,7 +9,13 @@ RUN apt update && \
     adduser --uid $UID --gid $GID --disabled-password --gecos "" nonroot && \
     echo 'nonroot ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
-RUN apt install -y buildah skopeo slirp4netns
+RUN apt-get update && \
+    apt-get install -y software-properties-common curl && \
+    . /etc/os-release && \
+    echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list && \
+    curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | apt-key add - && \
+    apt-get update && \
+    apt-get install -y buildah skopeo slirp4netns
 
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
 
