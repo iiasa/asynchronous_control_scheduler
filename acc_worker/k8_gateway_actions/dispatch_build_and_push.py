@@ -10,6 +10,7 @@ import time
 import shutil
 import zipfile
 from typing import Union
+from functools import cached_property
 from pathlib import Path
 from celery import current_task
 from minio import Minio
@@ -108,14 +109,15 @@ class OCIImageBuilder:
 
         self.set_image_building_site()
 
-        self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dockerfile"
+        self.set_dockerfile_path()
+        
         
         if self.tag_exists() and (not self.force_build):
             print(
                 f"WKube Builder: Skipping image build as image for given repo and"
                 f" tag already exists, force update is turned off."
             )
-            return self.get_image_tag()
+            return self.get_image_tag
 
         try:
             self.prepare_files()
@@ -125,18 +127,32 @@ class OCIImageBuilder:
         finally:
             self.clear_site()
         
-        return self.get_image_tag()
+        return self.get_image_tag
     
     def set_image_building_site(self):
         unq_folder = str(uuid.uuid4())
         self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{unq_folder}"
+
+    def set_dockerfile_path(self):
+        # Default dockerfile path
+        self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dockerfile"
+
+        # Step 2. Either dockerfile should be present or base_stack should be choosen
+        if not (self.dockerfile or self.base_stack):
+            raise ValueError("Either dockerfile of base_stack should be present with the job")
+        
+        if self.dockerfile:
+            dockerfile_path = Path(f"{self.IMAGE_BUILDING_SITE}/{self.dockerfile}")
+            self.dockerfile_path = str(dockerfile_path)
+        else:
+            self.create_dockerfile_for_basestack()
             
     
     def tag_exists(self):
         command = [
             "skopeo", "inspect", "--tls-verify=false", "--creds", 
             f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
-            f"docker://{self.get_image_tag()}"
+            f"docker://{self.get_image_tag}"
         ]
 
         exit_code = exec_command(command, raise_exception=False)
@@ -213,19 +229,9 @@ class OCIImageBuilder:
         else:
             self.pull_files_from_git()
 
-    
-        # Step 2. Either dockerfile should be present or base_stack should be choosen
-        if not (self.dockerfile or self.base_stack):
-            raise ValueError("Either dockerfile of base_stack should be present with the job")
-        
-        if self.dockerfile:
-            dockerfile_path = Path(f"{self.IMAGE_BUILDING_SITE}/{self.dockerfile}")
-            if not dockerfile_path.is_file():
-                raise ValueError(f"{dockerfile_path} does not exists")
-            
-            self.dockerfile_path = str(dockerfile_path)
-        else:
-            self.create_dockerfile_for_basestack()
+        if not Path(self.dockerfile_path).is_file():
+            raise ValueError(f"{self.dockerfile_path} does not exists")
+
 
     def create_dockerfile_for_basestack(self):
         """Create a dockerfile and set the value of self.dockerfile
@@ -241,9 +247,24 @@ class OCIImageBuilder:
                 f"'{self.base_stack}' does not exists. Please contact developer."
             )
         self.dockerfile_path = str(base_stack_dockerfile_path)
-        
-        
 
+    
+    @cached_property
+    def get_dockerfile_hash(self):
+        """Get the hash of the dockerfile in 7 characters
+        """
+
+        if self.dockerfile:
+            hash_value = uuid.uuid5(uuid.NAMESPACE_DNS, self.dockerfile).hex[:7]
+        else:
+            hash_value = uuid.uuid5(
+                uuid.NAMESPACE_DNS, 
+                f"{self.PREDEFINED_STACKS_FOLDER}/Dockerfile.{self.base_stack}"
+            ).hex[:7]
+
+        return hash_value
+        
+    @cached_property
     def get_image_tag(self):
         
         url = self.git_repo
@@ -260,7 +281,7 @@ class OCIImageBuilder:
         
         if url.endswith(".zip"):
             url = url[:-4]
-        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}{self.version}:latest"
+        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}-{self.get_dockerfile_hash}-{self.version}:latest"
 
     
     def build(self):
@@ -271,7 +292,7 @@ class OCIImageBuilder:
                 "bud",
                 "--isolation", "chroot", 
                 '-t',
-                self.get_image_tag(),
+                self.get_image_tag,
                 "-f", self.dockerfile_path,
                 self.IMAGE_BUILDING_SITE
             ]
@@ -295,14 +316,14 @@ class OCIImageBuilder:
 
         exec_command(login_command)
 
-        push_command = ["sudo", "buildah", "push", "--tls-verify=false",  self.get_image_tag()]
+        push_command = ["sudo", "buildah", "push", "--tls-verify=false",  self.get_image_tag]
 
         exec_command(push_command)
 
     def clean_up(self):
         
         remove_built_image_command = [
-            "sudo", "buildah", "rmi", self.get_image_tag()
+            "sudo", "buildah", "rmi", self.get_image_tag
         ]
 
         exec_command(remove_built_image_command)
