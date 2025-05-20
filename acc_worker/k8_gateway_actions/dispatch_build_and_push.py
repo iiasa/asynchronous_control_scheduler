@@ -130,7 +130,8 @@ class OCIImageBuilder:
         return self.get_image_tag
     
     def set_image_building_site(self):
-        unq_folder = str(uuid.uuid4())
+        unq_folder = uuid.uuid5(uuid.NAMESPACE_DNS, self.get_image_tag).hex
+
         self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{unq_folder}"
 
     def set_dockerfile_path(self):
@@ -293,7 +294,9 @@ class OCIImageBuilder:
         ]
 
         if self.force_build:
-            command.append("--no-cache")
+            # command.append("--no-cache")
+            command.append("--layers")
+       
 
         command += [
             "--isolation", "chroot",
@@ -634,6 +637,7 @@ class DispachWkubeTask():
         job_secrets = self.kwargs.get('job_secrets', {})
 
         env_vars = [
+            {"name": "JOB_ID", "value": str(self.kwargs['job_id'])},
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
             *[dict(name=key, value=str(job_conf[key])) for key in job_conf],
