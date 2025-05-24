@@ -14,6 +14,7 @@ class AppSetting():
         self.IMAGE_REGISTRY_PASSWORD: str = os.environ.get('IMAGE_REGISTRY_PASSWORD')
         self.WKUBE_SECRET_JSON_B64: Optional[str] = os.environ.get('WKUBE_SECRET_JSON_B64', None)
         self.WKUBE_K8_NAMESPACE: str = os.environ.get('WKUBE_K8_NAMESPACE', "wkube")
+        self.WKUBE_STORAGE_CLASS: str = os.environ.get('WKUBE_STORAGE_CLASS', None)
 
         self.JOBSTORE_S3_ENDPOINT: Optional[str] = os.environ.get('JOBSTORE_S3_ENDPOINT', None)
         self.JOBSTORE_S3_API_KEY: Optional[str] = os.environ.get('JOBSTORE_S3_API_KEY', None)

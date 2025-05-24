@@ -64,8 +64,8 @@ class BaseStack(str, enum.Enum):
     PYTHON3_7 = 'PYTHON3_7'
     R4_4 = 'R4_4'
 
-def exec_command(command, raise_exception=True):
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def exec_command(command, raise_exception=True, cwd=None):
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
 
     # Read and print the output
     for line in process.stdout:
@@ -98,7 +98,9 @@ class OCIImageBuilder:
             job_secrets={},
             dockerfile=None, 
             base_stack: Union[BaseStack, None]=None,
-            force_build=False
+            force_build=False,
+            user_id=None,
+            job_name=None
         ):
         self.git_repo = git_repo.lower()
         self.version = version
@@ -106,6 +108,8 @@ class OCIImageBuilder:
         self.base_stack = base_stack
         self.force_build = force_build
         self.job_secrets = job_secrets
+        self.user_id = user_id
+        self.job_name = job_name
 
         self.set_image_building_site()
 
@@ -128,11 +132,51 @@ class OCIImageBuilder:
             self.clear_site()
         
         return self.get_image_tag
+
+    @cached_property
+    def commit_hash(self):
+        if not self.git_repo.startswith("s3accjobstore://"):
+
+            try:
+                # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
+                command = [
+                    "git", "ls-remote",
+                    f"{self.git_repo}",
+                    f"{self.version}"
+                ]
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)   
+                output, error = process.communicate()
+                if process.returncode != 0:
+                    raise ValueError(f"Failed to get commit hash: {error.decode().strip()}")
+                commit_hash = output.decode().strip().split()[0]
+                return commit_hash[:7]
+            except Exception as e:
+                # The fallback will happen if the version is itself a commit hash
+                print(f"Couldn't get commit hash: {str(e)}")
+                return self.version
+
+        
     
     def set_image_building_site(self):
-        unq_folder = uuid.uuid5(uuid.NAMESPACE_DNS, self.get_image_tag).hex
+        """ The logic here is a best way to structure folder to maximize cacheing
+        
+        >> When the job is dispatched from remote as a zip folder then the cacheing key is 
+        based on job name.
 
-        self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{unq_folder}"
+        >> When the job is dispatched from git repo then the cacheing key is based on git repo url
+        and branch or commit.
+          >> Git commit with different commit hash will always trigger fresh build
+          >> With same branch and job name the cacheing key will be same and the image build layers can be reused
+        """
+
+        hased_job_name = uuid.uuid5(uuid.NAMESPACE_DNS, self.job_name).hex[:7]
+
+        if self.git_repo.startswith("s3accjobstore://"):
+            self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{self.user_id}/{hased_job_name}"
+        else:
+
+            normalized_repo_url_hash = uuid.uuid5(uuid.NAMESPACE_DNS, self.normalized_repo_url).hex[:7]
+            self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{self.user_id}/{hased_job_name}/{normalized_repo_url_hash}/{self.version}"
 
     def set_dockerfile_path(self):
         # Default dockerfile path
@@ -173,15 +217,46 @@ class OCIImageBuilder:
         #         raise ValueError(f"ACC_WKUBE_GIT_USER and ACC_WKUBE_GIT_PASSWORD job_secrets are required and supposed to be set by accelerator gateway.")
 
     def pull_files_from_git(self):
-        command = [
-                "git", "clone", 
-                "--depth", "1", 
-                "--branch", self.version, 
-                f"{self.get_git_pull_url()}",
-                self.IMAGE_BUILDING_SITE
-            ]
 
-        exec_command(command)
+        # Delete the folder if it exists
+        if os.path.exists(self.IMAGE_BUILDING_SITE):
+            shutil.rmtree(self.IMAGE_BUILDING_SITE)
+        os.makedirs(self.IMAGE_BUILDING_SITE, exist_ok=True)
+
+        clone_command = [
+            "git", "clone",
+            "--depth", "1",
+            "--no-checkout",  # Avoid checking out submodules
+            "--branch", self.version,
+            f"{self.get_git_pull_url()}",
+            self.IMAGE_BUILDING_SITE
+        ]
+        exec_command(clone_command)
+
+        # Check out the main working tree explicitly
+        exec_command(["git", "reset", "--hard", "HEAD"], cwd=self.IMAGE_BUILDING_SITE)
+
+        # Step 3: Normalize timestamps to enable buildah cache
+        exec_command([
+            "find", ".", "-type", "f", "-exec", "touch", "-d", "2023-01-01T00:00:00Z", "{}", "+"
+        ], cwd=self.IMAGE_BUILDING_SITE)
+
+        # Step 4: Add or update .dockerignore to exclude .git and .gitmodules
+        dockerignore_path = os.path.join(self.IMAGE_BUILDING_SITE, ".dockerignore")
+        ignored_entries = {".git", ".gitmodules"}
+
+        existing_entries = set()
+        if os.path.exists(dockerignore_path):
+            with open(dockerignore_path, "r") as f:
+                existing_entries = {line.strip() for line in f if line.strip()}
+
+        # Merge with what's already there
+        updated_entries = existing_entries.union(ignored_entries)
+
+        # Write back updated .dockerignore
+        with open(dockerignore_path, "w") as f:
+            for entry in sorted(updated_entries):
+                f.write(f"{entry}\n")
 
     def pull_files_from_job_store(self):
 
@@ -264,10 +339,12 @@ class OCIImageBuilder:
             ).hex[:7]
 
         return hash_value
-        
+
     @cached_property
-    def get_image_tag(self):
-        
+    def normalized_repo_url(self):
+        """Get the repo url from the git repo
+        """
+
         url = self.git_repo
         if url.startswith('http'):
             url = re.sub(r'https?://', '', url)
@@ -282,7 +359,14 @@ class OCIImageBuilder:
         
         if url.endswith(".zip"):
             url = url[:-4]
-        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{url}-{self.get_dockerfile_hash}-{self.version}:latest"
+
+        return url
+        
+    @cached_property
+    def get_image_tag(self):
+        
+        # Addition of get_dockerfile_hash is to prevent collision beteween same source with different base stacks
+        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{self.normalized_repo_url}-{self.get_dockerfile_hash}-{self.commit_hash}:latest"
 
     
     def build(self):
@@ -326,18 +410,24 @@ class OCIImageBuilder:
         exec_command(push_command)
 
     def clean_up(self):
+
+        """Depricated and should be done periodically
+        by least used images
+        """
+
+        pass
         
-        remove_built_image_command = [
-            "sudo", "buildah", "rmi", self.get_image_tag
-        ]
+        # remove_built_image_command = [
+        #     "sudo", "buildah", "rmi", self.get_image_tag
+        # ]
 
-        exec_command(remove_built_image_command)
+        # exec_command(remove_built_image_command)
 
-        cleanup_command = [
-            "sudo", "buildah", "rmi", "-p"
-        ]
+        # cleanup_command = [
+        #     "sudo", "buildah", "rmi", "-p"
+        # ]
 
-        exec_command(cleanup_command)
+        # exec_command(cleanup_command)
     
     def clear_site(self):
 
@@ -454,7 +544,9 @@ class DispachWkubeTask():
             job_secrets=self.kwargs['job_secrets'],
             dockerfile=self.kwargs['docker_filename'],
             base_stack=self.kwargs['base_stack'],
-            force_build=self.kwargs['force_build']
+            force_build=self.kwargs['force_build'],
+            user_id=self.kwargs['user_id'],
+            job_name=self.kwargs['job_name'],
         )
     
     def get_pvc_details(self):
@@ -518,6 +610,16 @@ class DispachWkubeTask():
                 }
             }
         }
+
+        if env.WKUBE_STORAGE_CLASS:
+            pvc_manifest['spec']['storageClassName'] = env.WKUBE_STORAGE_CLASS
+
+            if env.WKUBE_STORAGE_CLASS == "wstore":
+                # set annotations for wstore in development mode
+                pvc_manifest['metadata']['annotations'] = {
+                    "volume.kubernetes.io/selected-node": "lima-rancher-desktop"
+                }
+
 
         # Create the PVC
         v1_pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim')

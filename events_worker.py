@@ -14,6 +14,12 @@ config.load_kube_config_from_dict(
     )
 )
 
+kube_config = client.Configuration().get_default_copy()
+
+kube_config.verify_ssl = False
+
+client.Configuration.set_default(kube_config)
+
 # Create Kubernetes API client
 v1 = client.CoreV1Api()
 

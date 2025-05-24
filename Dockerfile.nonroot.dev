@@ -51,3 +51,14 @@ RUN pip3 install --upgrade pip
 RUN pip3 install -r /home/nonroot/app/requirements.txt
 
 CMD /bin/sh dev_entrypoint.sh
+
+
+# sudo tee /var/lib/rancher/k3s/agent/etc/containerd/certs.d/registry:8443/hosts.toml > /dev/null <<EOF
+# server = "registry:8443"
+
+# [host."http://registry:8443"]
+#   capabilities = ["pull", "resolve", "push"]
+#   skip_verify = true
+#   username = "myregistry"
+#   password = "myregistrypassword"
+# EOF
