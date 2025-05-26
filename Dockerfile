@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 
 ENV STORAGE_DRIVER=overlay
+ENV STORAGE_ROOT=/var/lib/containers/wkubebuildstorage
 
 # Install system dependencies
 RUN apt update && \
@@ -11,7 +12,7 @@ RUN . /etc/os-release && \
     echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list && \
     curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | apt-key add - && \
     apt-get update && \
-    apt-get install -y buildah skopeo
+    apt-get install -y buildah skopeo fuse-overlayfs
 
 # Optional: Configure default registry behavior
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
