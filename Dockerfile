@@ -24,6 +24,16 @@ RUN apt-get update && \
 # Default registry config
 RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
 
+RUN echo '[registries.search]' > /etc/containers/registries.conf && \
+    echo 'registries = ["docker.io"]' >> /etc/containers/registries.conf && \
+    echo '' >> /etc/containers/registries.conf && \
+    echo '[[registry]]' >> /etc/containers/registries.conf && \
+    echo 'prefix = "docker.io"' >> /etc/containers/registries.conf && \
+    echo '' >> /etc/containers/registries.conf && \
+    echo '[[registry.mirror]]' >> /etc/containers/registries.conf && \
+    echo 'location = "mirror.gcr.io"' >> /etc/containers/registries.conf && \
+    echo 'insecure = false' >> /etc/containers/registries.conf
+
 # Setup rootless user mapping
 RUN rm -rf /etc/subuid && \
     rm -rf /etc/subgid && \
