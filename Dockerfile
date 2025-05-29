@@ -1,66 +1,77 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV GID=99
 ENV UID=1000
 ENV STORAGE_DRIVER=overlay
-ENV STORAGE_ROOT=/home/nonroot/.local/share/containers/storage
+ENV STORAGE_ROOT=/home/ubuntu/.local/share/containers/storage
 
-# System dependencies and user setup
 RUN apt update && \
-    apt install -y sudo pkg-config cmake libtool autoconf python3-pip git && \
-    addgroup --gid $GID nonroot && \
-    adduser --uid $UID --gid $GID --disabled-password --gecos "" nonroot && \
-    echo 'nonroot ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+    apt install -y sudo pkg-config cmake libtool autoconf python3-pip git
 
-# Install Buildah and dependencies
-RUN apt-get update && \
-    apt-get install -y software-properties-common curl && \
-    . /etc/os-release && \
-    echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list && \
-    curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | apt-key add - && \
-    apt-get update && \
-    apt-get install -y buildah skopeo slirp4netns fuse-overlayfs
+RUN passwd -l ubuntu
+RUN addgroup --gid $GID nonroot
+RUN usermod -aG nonroot ubuntu
+RUN echo 'ubuntu ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
-# Default registry config
-RUN echo "unqualified-search-registries=[\"docker.io\"]" >> /etc/containers/registries.conf
+    
+RUN apt-get install -y software-properties-common curl
+RUN apt-get install -y buildah 
+RUN apt-get install -y skopeo
+RUN apt-get install -y fuse-overlayfs
+RUN apt-get install -y slirp4netns
 
-RUN echo '[registries.search]' > /etc/containers/registries.conf && \
-    echo 'registries = ["docker.io"]' >> /etc/containers/registries.conf && \
-    echo '' >> /etc/containers/registries.conf && \
-    echo '[[registry]]' >> /etc/containers/registries.conf && \
-    echo 'prefix = "docker.io"' >> /etc/containers/registries.conf && \
-    echo '' >> /etc/containers/registries.conf && \
-    echo '[[registry.mirror]]' >> /etc/containers/registries.conf && \
-    echo 'location = "mirror.gcr.io"' >> /etc/containers/registries.conf && \
-    echo 'insecure = false' >> /etc/containers/registries.conf
+RUN apt-get install -y software-properties-common curl
+RUN apt-get install -y buildah 
+RUN apt-get install -y skopeo
+RUN apt-get install -y fuse-overlayfs
+RUN apt-get install -y slirp4netns
 
-# Setup rootless user mapping
+
+RUN cat <<EOF > /etc/containers/registries.conf 
+[[registry]]
+location="docker.io"
+
+[[registry]]
+location="registry.fedoraproject.org"
+
+[[registry]]
+location="registry.access.redhat.com"
+
+[[registry]]
+location="registry.centos.org"
+
+[[registry.mirror]]
+location='mirror.gcr.io'
+EOF
+
+# Setup subuid/gid for rootless buildah
 RUN rm -rf /etc/subuid && \
     rm -rf /etc/subgid && \
-    echo "nonroot:100000:65536" | tee -a /etc/subuid /etc/subgid
+    echo "ubuntu:100000:65536" | tee -a /etc/subuid /etc/subgid
 
-# Switch to non-root user
-USER nonroot
+# Switch to ubuntu user
+USER ubuntu
 
-# Set up rootless storage directory for Buildah
-RUN mkdir -p $STORAGE_ROOT && \
-    chmod -R 700 /home/nonroot/.local && \
-    chmod -R 700 /home/nonroot/.local/share && \
-    chmod -R 700 /home/nonroot/.local/share/containers && \
-    chmod -R 700 $STORAGE_ROOT
+# Create and set proper rootless storage directory
+RUN mkdir -p /home/ubuntu/.local/share/containers/storage && \
+    chmod -R 700 /home/ubuntu/.local && \
+    chmod -R 700 /home/ubuntu/.local/share && \
+    chmod -R 700 /home/ubuntu/.local/share/containers && \
+    chmod -R 700 /home/ubuntu/.local/share/containers/storage
 
-# (Optional) Trigger storage initialization
+# Buildah storage config check (optional, triggers initialization)
 RUN buildah info > /dev/null || true
 
-# App setup
-RUN mkdir -p /home/nonroot/app
-WORKDIR /home/nonroot/app
-RUN chmod -R 755 /home/nonroot/app
+RUN mkdir /home/ubuntu/app
+WORKDIR /home/ubuntu/app
 
-COPY --chown=nonroot:nonroot ./requirements.txt /home/nonroot/app/requirements.txt
-RUN pip3 install --upgrade pip
-RUN pip3 install -r /home/nonroot/app/requirements.txt
+RUN chmod -R 755 /home/ubuntu/app
 
-COPY --chown=nonroot:nonroot . .
+COPY --chown=ubuntu:nonroot ./requirements.txt /home/ubuntu/app/requirements.txt
+
+RUN pip3 install --upgrade pip --break-system-packages
+RUN pip3 install -r /home/ubuntu/app/requirements.txt --break-system-packages
+
+COPY --chown=ubuntu:nonroot . .
 
 CMD ~/.local/bin/celery -A acc_worker.acc_native_jobs worker -B --loglevel=INFO

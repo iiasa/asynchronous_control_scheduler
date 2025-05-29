@@ -121,7 +121,7 @@ class OCIImageBuilder:
                 f"WKube Builder: Skipping image build as image for given repo and"
                 f" tag already exists, force update is turned off."
             )
-            return self.get_image_tag
+            return self.image_tag
 
         try:
             self.prepare_files()
@@ -131,7 +131,7 @@ class OCIImageBuilder:
         finally:
             self.clear_site()
         
-        return self.get_image_tag
+        return self.image_tag
 
     @cached_property
     def commit_hash(self):
@@ -197,7 +197,7 @@ class OCIImageBuilder:
         command = [
             "skopeo", "inspect", "--tls-verify=false", "--creds", 
             f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
-            f"docker://{self.get_image_tag}"
+            f"docker://{self.image_tag}"
         ]
 
         exit_code = exec_command(command, raise_exception=False)
@@ -363,10 +363,10 @@ class OCIImageBuilder:
         return url
         
     @cached_property
-    def get_image_tag(self):
+    def image_tag(self):
         
         # Addition of get_dockerfile_hash is to prevent collision beteween same source with different base stacks
-        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{self.normalized_repo_url}-{self.get_dockerfile_hash}-{self.commit_hash}:latest"
+        return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{self.normalized_repo_url}-{self.get_dockerfile_hash}:{self.commit_hash}"
 
     
     def build(self):
@@ -380,11 +380,14 @@ class OCIImageBuilder:
         if self.force_build:
             # command.append("--no-cache")
             command.append("--layers")
+        # else:
+        #     command.append("--layers")
        
 
         command += [
+            "--cache-from", ':'.join(self.image_tag.split(':')[:-1]),
             "--isolation", "chroot",
-            "-t", self.get_image_tag,
+            "-t", self.image_tag,
             "-f", self.dockerfile_path,
             self.IMAGE_BUILDING_SITE
         ]
@@ -405,7 +408,7 @@ class OCIImageBuilder:
 
         exec_command(login_command)
 
-        push_command = ["sudo", "buildah", "push", "--tls-verify=false", "--remove-signatures",  self.get_image_tag]
+        push_command = ["sudo", "buildah", "push", "--tls-verify=false", "--remove-signatures",  self.image_tag]
 
         exec_command(push_command)
 
@@ -414,20 +417,18 @@ class OCIImageBuilder:
         """Depricated and should be done periodically
         by least used images
         """
-
-        pass
         
-        # remove_built_image_command = [
-        #     "sudo", "buildah", "rmi", self.get_image_tag
-        # ]
+        remove_built_image_command = [
+            "sudo", "buildah", "rmi", self.image_tag
+        ]
 
-        # exec_command(remove_built_image_command)
+        exec_command(remove_built_image_command)
 
-        # cleanup_command = [
-        #     "sudo", "buildah", "rmi", "-p"
-        # ]
+        cleanup_command = [
+            "sudo", "buildah", "rmi", "-p"
+        ]
 
-        # exec_command(cleanup_command)
+        exec_command(cleanup_command)
     
     def clear_site(self):
 
