@@ -299,6 +299,8 @@ class OCIImageBuilder:
     
     def prepare_files(self):
 
+        self.clear_site()
+
         if self.git_repo.startswith("s3accjobstore://"):
             self.pull_files_from_job_store()
         
@@ -378,10 +380,9 @@ class OCIImageBuilder:
         ]
 
         if self.force_build:
-            # command.append("--no-cache")
             command.append("--layers")
-        # else:
-        #     command.append("--layers")
+        else:
+            command.append("--layers")
        
 
         command += [
