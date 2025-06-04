@@ -16,14 +16,12 @@ RUN apt-get update && apt-get install -y \
 # Set working directory to /code
 WORKDIR /code
 
+COPY ./init.R /code/init.R
+
+RUN Rscript /code/init.R;
+
 # Copy the local files into the container
 COPY . /code
-
-RUN if [ -f /code/init.R ]; then \
-    Rscript /code/init.R; \
-    else \
-    echo "Error: /code/init.R not found!" && exit 1; \
-    fi
 
 # Default command: start an interactive R session
 CMD ["R"]
