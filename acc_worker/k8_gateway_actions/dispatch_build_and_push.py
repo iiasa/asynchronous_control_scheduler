@@ -372,6 +372,19 @@ class OCIImageBuilder:
 
     
     def build(self):
+
+
+        login_command = [
+               "sudo", "buildah", 
+               "login", 
+               "--tls-verify=false", 
+               f"--username={env.IMAGE_REGISTRY_USER}", 
+               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
+               env.IMAGE_REGISTRY_URL
+            ]
+        # buildah login --username myregistry --password myregistrypassword registry:8443
+
+        exec_command(login_command)
         
         command = [
             "sudo",
