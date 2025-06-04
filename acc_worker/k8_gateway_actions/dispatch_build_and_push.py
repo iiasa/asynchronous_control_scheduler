@@ -385,7 +385,8 @@ class OCIImageBuilder:
        
 
         command += [
-            "--cache-from", ':'.join(self.image_tag.split(':')[:-1]),
+            "--cache-from", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
+            "--cache-to", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
             "--isolation", "chroot",
             "-t", self.image_tag,
             "-f", self.dockerfile_path,

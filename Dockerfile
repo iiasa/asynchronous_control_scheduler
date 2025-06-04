@@ -28,20 +28,17 @@ RUN apt-get install -y slirp4netns
 
 
 RUN cat <<EOF > /etc/containers/registries.conf 
+unqualified-search-registries = [
+  "docker.io",
+]
+
 [[registry]]
 location="docker.io"
+    [[registry.mirror]]
+    location="mirror.gcr.io"
 
-[[registry]]
-location="registry.fedoraproject.org"
-
-[[registry]]
-location="registry.access.redhat.com"
-
-[[registry]]
-location="registry.centos.org"
-
-[[registry.mirror]]
-location='mirror.gcr.io'
+[engine]
+short-name-mode = "permissive"
 EOF
 
 # Setup subuid/gid for rootless buildah
