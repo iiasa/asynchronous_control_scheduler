@@ -63,6 +63,7 @@ class BaseStack(str, enum.Enum):
     """
     PYTHON3_7 = 'PYTHON3_7'
     R4_4 = 'R4_4'
+    GAMS40_1__R4_0 = 'GAMS40_1__R4_0'
 
 def exec_command(command, raise_exception=True, cwd=None):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
