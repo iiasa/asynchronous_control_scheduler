@@ -17,7 +17,7 @@ ENV GAMS_BIT_ARC=x64_64
 
 RUN mkdir -p /opt/gams
 
-RUN curl -SL "https://d37drm4t2jghv5.cloudfront.net/distributions/${LATEST}/linux/linux_${GAMS_BIT_ARC}_sfx.exe" \
+RUN curl -SL "https://testwithfastapi.s3.us-east-1.amazonaws.com/${LATEST}-linux_${GAMS_BIT_ARC}_sfx.exe" \
     --create-dirs -o /opt/gams/gams.exe
 
 WORKDIR /opt/gams
