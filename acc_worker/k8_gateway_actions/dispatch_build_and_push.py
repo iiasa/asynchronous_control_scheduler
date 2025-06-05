@@ -178,7 +178,7 @@ class OCIImageBuilder:
         #     normalized_repo_url_hash = uuid.uuid5(uuid.NAMESPACE_DNS, self.normalized_repo_url).hex[:7]
         #     self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{self.user_id}/{hased_job_name}/{normalized_repo_url_hash}/{self.version}"
 
-        self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{uuid.uuid4().hex})
+        self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{uuid.uuid4().hex}"
 
     def set_dockerfile_path(self):
         # Default dockerfile path
