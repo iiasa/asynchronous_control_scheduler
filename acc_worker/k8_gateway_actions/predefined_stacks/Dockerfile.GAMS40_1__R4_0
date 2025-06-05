@@ -1,0 +1,42 @@
+FROM debian:bullseye-slim
+
+RUN apt-get update && \
+    apt-get install -y curl gnupg2 && \
+    rm -rf /var/lib/apt/lists/*
+
+
+RUN apt-get update && \
+    apt-get install -y r-base && \
+    rm -rf /var/lib/apt/lists/*
+
+
+ENV LATEST=40.1.1
+ENV LATEST_SHORT=40.1
+ENV GAMS_VERSION=${LATEST}
+ENV GAMS_BIT_ARC=x64_64
+
+RUN mkdir -p /opt/gams
+
+RUN curl -SL "https://d37drm4t2jghv5.cloudfront.net/distributions/${LATEST}/linux/linux_${GAMS_BIT_ARC}_sfx.exe" \
+    --create-dirs -o /opt/gams/gams.exe
+
+WORKDIR /opt/gams
+RUN chmod +x gams.exe && \
+    ./gams.exe && \
+    rm -rf gams.exe
+
+ENV GAMS_PATH=/opt/gams/gams${LATEST_SHORT}_linux_${GAMS_BIT_ARC}_sfx
+ENV PATH=$PATH:$GAMS_PATH
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$GAMS_PATH
+
+WORKDIR /code
+
+COPY ./init.R /code/init.R
+
+RUN Rscript /code/init.R;
+
+COPY . /code
+
+CMD ["R"]
+
+
