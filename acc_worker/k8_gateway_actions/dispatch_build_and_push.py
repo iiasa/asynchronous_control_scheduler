@@ -431,21 +431,25 @@ class OCIImageBuilder:
         exec_command(push_command)
 
     def clean_up(self):
-
-        """Depricated and should be done periodically
-        by least used images
         """
-        
+        Clean up buildah containers and images.
+        """
+        # First remove all build containers (this prevents 'image used by container' errors)
+        remove_containers_command = [
+            "sudo", "buildah", "rm", "--all"
+        ]
+        exec_command(remove_containers_command)
+
+        # Now remove the built image
         remove_built_image_command = [
             "sudo", "buildah", "rmi", self.image_tag
         ]
-
         exec_command(remove_built_image_command)
 
+        # Optional: prune dangling images
         cleanup_command = [
             "sudo", "buildah", "rmi", "-p"
         ]
-
         exec_command(cleanup_command)
     
     def clear_site(self):
