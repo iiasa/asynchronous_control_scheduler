@@ -64,6 +64,7 @@ class BaseStack(str, enum.Enum):
     PYTHON3_7 = 'PYTHON3_7'
     R4_4 = 'R4_4'
     GAMS40_1__R4_0 = 'GAMS40_1__R4_0'
+    WINE64__CONSOLE = 'WINE64__CONSOLE'
 
 def exec_command(command, raise_exception=True, cwd=None):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
@@ -820,6 +821,10 @@ class DispachWkubeTask():
                                 "name": "wkube-agent-puller",
                                 "image": env.WKUBE_AGENT_PULLER,
                                 "command": init_container_command,
+                                "securityContext": {
+                                    "runAsUser": 9999,
+                                    "runAsGroup": 2000,
+                                },
                                 "volumeMounts": [
                                     {
                                         "name": f"{job_name}-agent-volume",
@@ -829,8 +834,6 @@ class DispachWkubeTask():
                             }
                         ],
                         "securityContext": {
-                            "runAsUser": 9999,
-                            "runAsGroup": 2000,
                             "fsGroup": 2000,
                             "supplementalGroups": [2000]
                         },
@@ -839,6 +842,10 @@ class DispachWkubeTask():
                                 "name": job_name,
                                 "image": self.kwargs['docker_image'],
                                 "command": main_container_command,
+                                "securityContext": {
+                                    "runAsUser": 9999,
+                                    "runAsGroup": 2000,
+                                },
                                 "resources": {
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
