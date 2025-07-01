@@ -1,0 +1,22 @@
+FROM debian:bullseye-slim
+
+RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
+    wine wine64 wine32 file wget && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user with /code as home
+RUN useradd -m -d /code wineuser && mkdir -p /code && chown wineuser:wineuser /code
+
+USER wineuser
+WORKDIR /code
+
+# Use 64-bit Wine prefix
+ENV WINEARCH=win64 \
+    WINEPREFIX=/code/.wine64 \
+    WINEDEBUG=-all
+
+# Initialize 64-bit Wine prefix
+RUN wineboot
+
+COPY . /code
+

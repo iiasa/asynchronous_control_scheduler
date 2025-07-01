@@ -829,7 +829,10 @@ class DispachWkubeTask():
                             }
                         ],
                         "securityContext": {
-                            "fsGroup": 65534
+                            "runAsUser": 9999,
+                            "runAsGroup": 2000,
+                            "fsGroup": 2000,
+                            "supplementalGroups": [2000]
                         },
                         "containers": [
                             {
