@@ -821,10 +821,6 @@ class DispachWkubeTask():
                                 "name": "wkube-agent-puller",
                                 "image": env.WKUBE_AGENT_PULLER,
                                 "command": init_container_command,
-                                "securityContext": {
-                                    "runAsUser": 9999,
-                                    "runAsGroup": 2000,
-                                },
                                 "volumeMounts": [
                                     {
                                         "name": f"{job_name}-agent-volume",
@@ -834,18 +830,13 @@ class DispachWkubeTask():
                             }
                         ],
                         "securityContext": {
-                            "fsGroup": 2000,
-                            "supplementalGroups": [2000]
+                            "fsGroup": 65534
                         },
                         "containers": [
                             {
                                 "name": job_name,
                                 "image": self.kwargs['docker_image'],
                                 "command": main_container_command,
-                                "securityContext": {
-                                    "runAsUser": 9999,
-                                    "runAsGroup": 2000,
-                                },
                                 "resources": {
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
