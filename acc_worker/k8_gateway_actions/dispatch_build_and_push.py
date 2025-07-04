@@ -680,6 +680,9 @@ class DispachWkubeTask():
     def __call__(self):
         self.kwargs['docker_image'] = self.get_or_create_job_image()
 
+        if self.kwargs['build_only_task']:
+            return
+
         self.get_or_create_cache_pvc()
         self.launch_k8_job()
 

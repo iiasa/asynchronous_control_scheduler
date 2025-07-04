@@ -193,6 +193,9 @@ def wkube_capture_log(func):
             if not isinstance(error, CeleryRetry):
                 project_service.update_job_status("ERROR")
             raise error
+        else:
+            if kwargs['build_only_task']:
+                project_service.update_job_status("DONE")
         
         
     return wrapper_func
