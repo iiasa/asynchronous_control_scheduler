@@ -111,7 +111,7 @@ class OCIImageBuilder:
         self.force_build = force_build
         self.job_secrets = job_secrets
         self.user_id = user_id
-        self.job_name = job_name
+        self.job_name = job_name # This is queue task id
 
         self.set_image_building_site()
 
@@ -717,15 +717,23 @@ class DispachWkubeTask():
 
         init_container_shell_script = '''
             binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.2.9-linux-amd/wagt"; 
-            binary_file="/mnt/agent/wagt"; 
+            binary_file="/mnt/agent/wagt";
+            ssh_url="https://testwithfastapi.s3.amazonaws.com/openssh-musl-9.7p1/bin/ssh"
+            ssh_file="/mnt/agent/ssh"
             (
                 command -v curl &>/dev/null && 
                 curl -sSL "$binary_url" -o "$binary_file" && 
-                echo "Wagt downloaded successfully with curl."
+                chmod +x "$binary_file" &&
+                echo "Wagt downloaded successfully with curl." &&
+                curl -sSL "$ssh_url" -o "$ssh_file" && 
+                echo "static ssh downloaded successfully with curl."
             ) || (
                 command -v wget &>/dev/null && 
                 wget -q "$binary_url" -O "$binary_file" && 
-                echo "Wagt downloaded successfully with wget."
+                chmod +x "$binary_file" &&
+                echo "Wagt downloaded successfully with wget." &&
+                wget -q "$ssh_url" -O "$ssh_file" && 
+                echo "static ssh downloaded successfully with wget."
             ) || { 
                 echo "Error: Neither curl nor wget is available."; 
                 exit 1; 
@@ -738,8 +746,7 @@ class DispachWkubeTask():
                 echo "Error: Binary file not found. Please download it first."; 
                 sleep 10; 
                 exit 1; 
-            }; 
-            chmod +x "$binary_file"; 
+            };
             echo "Executing binary..."; 
             "$binary_file" "%s"; 
             echo "Wagt execution completed."; 
@@ -767,6 +774,7 @@ class DispachWkubeTask():
 
         env_vars = [
             {"name": "JOB_ID", "value": str(self.kwargs['job_id'])},
+            {"name": "POD_ID", "value": str(job_name)},
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
             *[dict(name=key, value=str(job_conf[key])) for key in job_conf],
