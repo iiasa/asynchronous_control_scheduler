@@ -851,7 +851,7 @@ class DispachWkubeTask():
                                 "resources": {
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
-                                        "cpu": self.kwargs['required_cores'],
+                                        "cpu": float(self.kwargs['required_cores']) + 0.5,
                                         "ephemeral-storage": self.kwargs['required_storage_local']
                                     },
                                      "requests": {
