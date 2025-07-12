@@ -817,6 +817,7 @@ class DispachWkubeTask():
                 }
             },
             "spec": {
+                "hostUsers": False,   # TODO make is configurable @wrufesh
                 "backoffLimit": 0,
                 "activeDeadlineSeconds": self.kwargs['timeout'],
                 "ttlSecondsAfterFinished": 0,
@@ -868,6 +869,10 @@ class DispachWkubeTask():
                                     {
                                         "name": self.kwargs['pvc_id'],
                                         "mountPath": "/mnt/data"
+                                    },
+                                    {
+                                        "name": f"{job_name}-scrach-disk",
+                                        "mountPath": "/mnt/sd"
                                     }
                                 ],
                                 
@@ -883,6 +888,10 @@ class DispachWkubeTask():
                             },
                             {
                                 "name": f"{job_name}-agent-volume",
+                                "emptyDir": {}
+                            },
+                            {
+                                "name": f"{job_name}-scrach-disk",
                                 "emptyDir": {}
                             }
                         ],
