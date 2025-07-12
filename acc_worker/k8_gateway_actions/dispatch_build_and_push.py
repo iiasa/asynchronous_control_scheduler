@@ -716,7 +716,7 @@ class DispachWkubeTask():
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
         init_container_shell_script = '''
-            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.2.9-linux-amd/wagt"; 
+            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.3-linux-amd/wagt"; 
             binary_file="/mnt/agent/wagt";
             ssh_url="https://testwithfastapi.s3.amazonaws.com/openssh-musl-9.7p1/bin/ssh"
             ssh_file="/mnt/agent/ssh"
@@ -773,12 +773,20 @@ class DispachWkubeTask():
         job_secrets = self.kwargs.get('job_secrets', {})
 
         env_vars = [
-            {"name": "JOB_ID", "value": str(self.kwargs['job_id'])},
-            {"name": "POD_ID", "value": str(job_name)},
-            {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
-            {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
             *[dict(name=key, value=str(job_conf[key])) for key in job_conf],
             *[dict(name=key, value=str(job_secrets[key])) for key in job_secrets],
+            {"name": "JOB_ID", "value": str(self.kwargs['job_id'])},
+            {"name": "POD_ID", "value": str(job_name)},
+
+            {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
+            {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
+
+            {"name": "ALLOWED_MOUNT_POINTS", "value": '/mnt/data,/mnt/sd'},
+
+            {"name": "TUNNEL_GATEWAY_SSH_USER", "value": 'root'},
+            {"name": "TUNNEL_GATEWAY_SSH_SERVER", "value": 'wkube.iiasa.ac.at'},
+            {"name": "TUNNEL_GATEWAY_DOMAIN", "value": 'wkube.iiasa.ac.at'},
+            {"name": "TUNNEL_GATEWAY_SSH_PRIVATE_KEY", "value": '/mnt/data,/mnt/sd'},
         ]
 
         # Specify the node name
