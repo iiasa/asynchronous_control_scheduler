@@ -880,7 +880,7 @@ class DispachWkubeTask():
                                     },
                                     {
                                         "name": f"{job_name}-scrach-disk",
-                                        "mountPath": "/mnt/sd"
+                                        "mountPath": "/code/out"
                                     }
                                 ],
                                 
