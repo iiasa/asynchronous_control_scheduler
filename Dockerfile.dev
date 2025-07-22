@@ -37,6 +37,10 @@ location="docker.io"
     [[registry.mirror]]
     location="mirror.gcr.io"
 
+[[registry]]
+location = "registry:8443"
+insecure = true
+
 [engine]
 short-name-mode = "permissive"
 EOF
