@@ -715,30 +715,6 @@ class DispachWkubeTask():
     def launch_k8_job(self):
         # https://chat.openai.com/c/8ce0d652-093d-4ff4-aec3-c5ac806bd5e4
 
-        init_container_shell_script = '''
-            binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v1.3.1-linux-amd/wagt"; 
-            binary_file="/mnt/agent/wagt";
-            ssh_url="https://testwithfastapi.s3.amazonaws.com/openssh-musl-9.7p1/bin/ssh"
-            ssh_file="/mnt/agent/ssh"
-            (
-                command -v curl &>/dev/null && 
-                curl -sSL "$binary_url" -o "$binary_file" && 
-                chmod +x "$binary_file" &&
-                echo "Wagt downloaded successfully with curl." &&
-                curl -sSL "$ssh_url" -o "$ssh_file" && 
-                echo "static ssh downloaded successfully with curl."
-            ) || (
-                command -v wget &>/dev/null && 
-                wget -q "$binary_url" -O "$binary_file" && 
-                chmod +x "$binary_file" &&
-                echo "Wagt downloaded successfully with wget." &&
-                wget -q "$ssh_url" -O "$ssh_file" && 
-                echo "static ssh downloaded successfully with wget."
-            ) || { 
-                echo "Error: Neither curl nor wget is available."; 
-                exit 1; 
-            }
-        '''
 
         main_container_shell_script = '''
             binary_file="/mnt/agent/wagt"; 
@@ -752,7 +728,6 @@ class DispachWkubeTask():
             echo "Wagt execution completed."; 
             sleep 10;
         ''' % (escape_character(self.kwargs['command'], '"'))
-        init_container_command = ["/bin/sh", "-c", init_container_shell_script]
         
         main_container_command = ["/bin/sh", "-c", main_container_shell_script]
         
@@ -840,7 +815,6 @@ class DispachWkubeTask():
                             {
                                 "name": "wkube-agent-puller",
                                 "image": env.WKUBE_AGENT_PULLER,
-                                "command": init_container_command,
                                 "volumeMounts": [
                                     {
                                         "name": f"{job_name}-agent-volume",
