@@ -612,7 +612,13 @@ class DispachWkubeTask():
                     print(f"Waiting for existing pvc: {self.kwargs['pvc_id']} to get bound to PV.")
                     
                     time.sleep(5)
-                    phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+
+                    existing_passed_pvc = self.get_pvc_details()
+                    if existing_passed_pvc:
+                        phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
+                    else:
+                        print(f"Existing PVC: {self.kwargs['pvc_id']}: details query returned None.")
+
 
                 return
 
@@ -660,7 +666,11 @@ class DispachWkubeTask():
             print(f"Waiting for new pvc: {self.kwargs['pvc_id']} to get bound to PV.")
             
             time.sleep(5)
-            created_pvc_phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+            existing_created_pvc = self.get_pvc_details()
+            if existing_created_pvc:
+                created_pvc_phase = existing_created_pvc.get('status', {}).get('phase', 'Unknown')
+            else:
+                print(f"New PVC: {self.kwargs['pvc_id']}: details query returned None.")
 
         return
 
