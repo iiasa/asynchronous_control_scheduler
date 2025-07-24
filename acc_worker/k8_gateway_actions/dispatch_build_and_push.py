@@ -717,17 +717,34 @@ class DispachWkubeTask():
 
 
         main_container_shell_script = '''
-            binary_file="/mnt/agent/wagt"; 
-            [ ! -f "$binary_file" ] && { 
-                echo "Error: Binary file not found. Please download it first."; 
-                sleep 10; 
-                exit 1; 
-            };
-            echo "Executing binary..."; 
-            "$binary_file" "%s"; 
-            echo "Wagt execution completed."; 
-            sleep 10;
+            binary_file="/mnt/agent/wagt"
+
+            # Define termination handler
+            cleanup() {
+                echo "SIGTERM received. Stopping wagt..."
+                if [ -n "$BINARY_PID" ]; then
+                    kill -TERM "$BINARY_PID"
+                    wait "$BINARY_PID"
+                    echo "Wagt process stopped."
+                fi
+                exit 0
+            }
+
+            # Trap SIGTERM
+            trap cleanup SIGTERM
+
+            echo "Executing binary..."
+            "$binary_file" "%s" &
+            BINARY_PID=$!
+
+            # Wait for binary to finish or be terminated
+            wait "$BINARY_PID"
+            echo "Wagt execution completed."
+
+            # Optional pause
+            sleep 10
         ''' % (escape_character(self.kwargs['command'], '"'))
+
         
         main_container_command = ["/bin/sh", "-c", main_container_shell_script]
         
@@ -811,6 +828,7 @@ class DispachWkubeTask():
                         }
                     },
                     "spec": {
+                        "terminationGracePeriodSeconds": 30,
                         "initContainers": [
                             {
                                 "name": "wkube-agent-puller",
