@@ -618,6 +618,7 @@ class DispachWkubeTask():
                         phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
                     else:
                         print(f"Existing PVC: {self.kwargs['pvc_id']}: details query returned None.")
+                        phase = 'Unknown'
 
 
                 return
@@ -657,7 +658,14 @@ class DispachWkubeTask():
 
         print("Created PVC:", created_pvc)
 
-        created_pvc_phase = self.get_pvc_details().get('status', {}).get('phase', 'Unknown')
+        pvc_details = self.get_pvc_details()
+        
+        if pvc_details:
+            created_pvc_phase = pvc_details.get('status', {}).get('phase', 'Unknown')
+        else:
+            print("Created PVC: Warning: get_pvc_details() returned None")
+            created_pvc_phase = 'Unknown'
+
         while created_pvc_phase not in ['Bound']:
             if created_pvc_phase == 'Lost':
                 raise ValueError("Something unexpected happend. Created PVC got lost may be because of underlying infrastructure.")
