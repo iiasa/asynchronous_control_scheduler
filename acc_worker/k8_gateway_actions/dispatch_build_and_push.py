@@ -19,6 +19,10 @@ from kubernetes import client, config, dynamic
 from kubernetes.client import api_client
 from celery import current_task
 
+import threading
+from kubernetes import watch, client
+import time
+
 from acc_worker.k8_gateway_actions.cleanup_tasks import delete_pvc
 
 from kubernetes.dynamic.exceptions import NotFoundError, ConflictError
@@ -506,6 +510,8 @@ class DispachWkubeTask():
 
         self.image_builder =  OCIImageBuilder()
 
+        self.volumes = []
+
     def get_core_v1_api(self):
         config.load_kube_config_from_dict(
             config_dict=json.loads(
@@ -573,10 +579,8 @@ class DispachWkubeTask():
             job_name=self.kwargs['job_name'],
         )
     
-    def get_pvc_details(self):
-
+    def get_workflow_pvc_details(self):
         try:
-            
             pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim').get(
                 namespace=env.WKUBE_K8_NAMESPACE, name=self.kwargs['pvc_id'])
             if pvc:
@@ -587,10 +591,92 @@ class DispachWkubeTask():
                 return None
         except NotFoundError:
             return None
+
+    def get_graph_pvc_name(self):
+        return f"graph-pvc-{self.kwargs['job_id']}"
+
+    def get_graph_pvc_details(self):
+        try:
+            pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim').get(
+                namespace=env.WKUBE_K8_NAMESPACE, name=self.get_graph_pvc_name())
+            if pvc:
+                print(f"Graph PVC {self.get_graph_pvc_name()} exists in namespace {env.WKUBE_K8_NAMESPACE}.")
+                return pvc
+            else:
+                print(f"Graph PVC {self.get_graph_pvc_name()} does not exist in namespace {env.WKUBE_K8_NAMESPACE}.")
+                return None
+        except NotFoundError:
+            return None
      
-    def get_or_create_cache_pvc(self):
+
+    def get_or_create_graph_pvc(self):
        
-        pvc = self.get_pvc_details()
+        pvc = self.get_graph_pvc_details()
+
+        if pvc:
+            phase = pvc.get('status', {}).get('phase', 'Unknown')
+
+            if self.kwargs['is_first_graph_job']:
+                delete_pvc(self.get_graph_pvc_name())
+                while True:
+                    pvc = self.get_graph_pvc_details()
+                    if not pvc:  # PVC is fully deleted
+                        break
+                    print(f"Waiting for existing graph PVC '{self.get_graph_pvc_name()}' to be fully deleted...")
+                    time.sleep(5)
+            else:
+                while phase not in ['Bound']:
+                    if phase == 'Lost':
+                        raise ValueError("Something unexpected happend. Existing graph PVC got lost may be because of underlying infrastructure.")
+                    
+                    print(f"Existing graph PVC: {self.get_graph_pvc_name()}: Current phase: {phase}")
+                    print(f"Waiting for existing graph  pvc: {self.get_graph_pvc_name()} to get bound to PV.")
+                    
+                    time.sleep(5)
+
+                    existing_passed_pvc = self.get_graph_pvc_details()
+                    if existing_passed_pvc:
+                        phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
+                    else:
+                        print(f"Existing graph PVC: {self.kwargs['pvc_id']}: details query returned None.")
+                        phase = 'Unknown'
+
+                return
+
+
+        pvc_manifest = {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": self.get_graph_pvc_name()
+            },
+            "spec": {
+                "storageClassName": env.WKUBE_GRAPH_STORAGE_CLASS,
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": self.kwargs.get('required_storage_graph')
+                    }
+                }
+            }
+        }
+
+
+        # Create the PVC with volumeBindingMode: "WaitForFirstConsumer"
+        v1_pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
+        created_pvc = v1_pvc.create(namespace=env.WKUBE_K8_NAMESPACE, body=pvc_manifest)
+
+        print("Created graph PVC:", created_pvc)
+
+        return
+    
+    
+    
+    def get_or_create_workflow_pvc(self):
+       
+        pvc = self.get_workflow_pvc_details()
 
         if pvc:
             phase = pvc.get('status', {}).get('phase', 'Unknown')
@@ -598,28 +684,27 @@ class DispachWkubeTask():
             if self.kwargs['is_first_pipeline_job']:
                 delete_pvc(self.kwargs['pvc_id'])
                 while True:
-                    pvc = self.get_pvc_details()
+                    pvc = self.get_workflow_pvc_details()
                     if not pvc:  # PVC is fully deleted
                         break
-                    print(f"Waiting for existing PVC '{self.kwargs['pvc_id']}' to be fully deleted...")
+                    print(f"Waiting for existing workflow PVC '{self.kwargs['pvc_id']}' to be fully deleted...")
                     time.sleep(5)
             else:
                 while phase not in ['Bound']:
                     if phase == 'Lost':
-                        raise ValueError("Something unexpected happend. Existing PVC got lost may be because of underlying infrastructure.")
+                        raise ValueError("Something unexpected happend. Existing workflow  PVC got lost may be because of underlying infrastructure.")
                     
-                    print(f"Existing PVC: {self.kwargs['pvc_id']}: Current phase: {phase}")
-                    print(f"Waiting for existing pvc: {self.kwargs['pvc_id']} to get bound to PV.")
+                    print(f"Existing workflow PVC: {self.kwargs['pvc_id']}: Current phase: {phase}")
+                    print(f"Waiting for existing workflow pvc: {self.kwargs['pvc_id']} to get bound to PV.")
                     
                     time.sleep(5)
 
-                    existing_passed_pvc = self.get_pvc_details()
+                    existing_passed_pvc = self.get_workflow_pvc_details()
                     if existing_passed_pvc:
                         phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
                     else:
-                        print(f"Existing PVC: {self.kwargs['pvc_id']}: details query returned None.")
+                        print(f"Existing workflow PVC: {self.kwargs['pvc_id']}: details query returned None.")
                         phase = 'Unknown'
-
 
                 return
 
@@ -631,77 +716,61 @@ class DispachWkubeTask():
                 "name": self.kwargs['pvc_id']
             },
             "spec": {
+                "storageClassName": env.WKUBE_WORKFLOW_STORAGE_CLASS,
                 "accessModes": [
                     "ReadWriteOnce"
                 ],
                 "resources": {
                     "requests": {
-                        "storage": self.kwargs.get('required_storage_workflow', 1024 * 1024)
+                        "storage": self.kwargs.get('required_storage_workflow')
                     }
                 }
             }
         }
 
-        if env.WKUBE_STORAGE_CLASS:
-            pvc_manifest['spec']['storageClassName'] = env.WKUBE_STORAGE_CLASS
 
-            if env.WKUBE_STORAGE_CLASS == "wstore":
-                # set annotations for wstore in development mode
-                pvc_manifest['metadata']['annotations'] = {
-                    "volume.kubernetes.io/selected-node": "lima-rancher-desktop"
-                }
-
-
-        # Create the PVC
+        # Create the PVC with volumeBindingMode: "WaitForFirstConsumer"
         v1_pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
         created_pvc = v1_pvc.create(namespace=env.WKUBE_K8_NAMESPACE, body=pvc_manifest)
 
         print("Created PVC:", created_pvc)
 
-        pvc_details = self.get_pvc_details()
-        
-        if pvc_details:
-            created_pvc_phase = pvc_details.get('status', {}).get('phase', 'Unknown')
-        else:
-            print("Created PVC: Warning: get_pvc_details() returned None")
-            created_pvc_phase = 'Unknown'
-
-        while created_pvc_phase not in ['Bound']:
-            if created_pvc_phase == 'Lost':
-                raise ValueError("Something unexpected happend. Created PVC got lost may be because of underlying infrastructure.")
-            
-            print(f"New PVC: {self.kwargs['pvc_id']}: Current phase: {created_pvc_phase}")
-            print(f"Waiting for new pvc: {self.kwargs['pvc_id']} to get bound to PV.")
-            
-            time.sleep(5)
-            existing_created_pvc = self.get_pvc_details()
-            if existing_created_pvc:
-                created_pvc_phase = existing_created_pvc.get('status', {}).get('phase', 'Unknown')
-            else:
-                print(f"New PVC: {self.kwargs['pvc_id']}: details query returned None.")
-
         return
 
     # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
     def get_node_name(self):
-        label_selector = f"pvc_id={self.kwargs['pvc_id']}"
+        if self.kwargs['is_first_pipeline_job']:
+            return self.kwargs.get(
+            'node_id')
+        else:
+            label_selector = f"pvc_id={self.kwargs['pvc_id']}"
 
-        pod_resource = self.api_cli.resources.get(api_version='v1', kind='Pod')
-        pods = pod_resource.get(namespace=env.WKUBE_K8_NAMESPACE, label_selector=label_selector)
+            pod_resource = self.api_cli.resources.get(api_version='v1', kind='Pod')
+            pods = pod_resource.get(namespace=env.WKUBE_K8_NAMESPACE, label_selector=label_selector)
 
 
-        # If any pod matches, return the node name of the first one
-        if pods.items:
-            print(f"______________________FOLLOW UP NODE NAME {pods.items[0].spec.node_name}")
-            return pods.items[0].spec.node_name
+            # If any pod matches, return the node name of the first one
+            if pods.items:
+                print(f"______________________FOLLOW UP NODE NAME {pods.items[0].spec.node_name}")
+                return pods.items[0].spec.node_name
 
     def __call__(self):
         self.kwargs['docker_image'] = self.get_or_create_job_image()
 
+        graph_storage = self.kwargs.get('required_storage_graph')
+        if graph_storage:
+            self.get_or_create_graph_pvc()
+            self.volumes.append(
+                dict(
+                    name=self.get_graph_pvc_name(),
+                    mount_point='/mnt/graph'
+                )
+            )
+
         if self.kwargs['build_only_task']:
             return
 
-        self.get_or_create_cache_pvc()
+        
         self.launch_k8_job()
 
 
@@ -745,11 +814,13 @@ class DispachWkubeTask():
                     wait "$BINARY_PID"
                     echo "Wagt process stopped."
                 fi
-                exit 0
+                CLEANUP_TRIGGERED=true
             }
 
             # Trap SIGTERM
             trap cleanup SIGTERM
+
+            CLEANUP_TRIGGERED=false
 
             echo "Executing binary..."
             "$binary_file" "%s" &
@@ -757,10 +828,21 @@ class DispachWkubeTask():
 
             # Wait for binary to finish or be terminated
             wait "$BINARY_PID"
-            echo "Wagt execution completed."
+            EXIT_CODE=$?
 
-            # Optional pause
-            sleep 10
+            echo "Wagt execution completed with exit code $EXIT_CODE."
+
+            # Always sleep for 30 seconds regardless of how it ended
+            echo "Sleeping for 30 seconds..."
+            sleep 30
+
+            # Exit with the binary's exit code if no SIGTERM, or 0 if SIGTERM occurred
+            if [ "$CLEANUP_TRIGGERED" = true ]; then
+                exit 0
+            else
+                exit "$EXIT_CODE"
+            fi
+
         ''' % (escape_character(self.kwargs['command'], '"'))
 
         
@@ -791,19 +873,25 @@ class DispachWkubeTask():
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
 
-            {"name": "ALLOWED_MOUNT_POINTS", "value": '/mnt/data,/mnt/sd'},
-
             {"name": "TUNNEL_GATEWAY_SSH_USER", "value": 'root'},
             {"name": "TUNNEL_GATEWAY_SSH_SERVER", "value": 'wkube.iiasa.ac.at'},
             {"name": "TUNNEL_GATEWAY_DOMAIN", "value": 'wkube.iiasa.ac.at'},
             {"name": "TUNNEL_GATEWAY_SSH_PRIVATE_KEY", "value": '/mnt/data,/mnt/sd'},
+            {
+                "name": "CLUSTER_NODE_NAME",
+                "valueFrom": {
+                    "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                    }
+                }
+            }
         ]
 
         # Specify the node name
         node_name = self.kwargs.get(
             'node_id', 
             self.get_node_name()
-        )  
+        )
         
         pod_affinity = {}
 
@@ -824,6 +912,19 @@ class DispachWkubeTask():
                 }
             }
 
+        
+
+        workflow_storage = self.kwargs.get('required_storage_workflow')
+        
+        if workflow_storage:
+            self.get_or_create_workflow_pvc()
+            self.volumes.append(
+                dict(
+                    name=self.kwargs['pvc_id'],
+                    mount_point='/mnt/pipe'
+                )
+            )
+
         # Specify the Job definition with resource limits, PVC mount, image pull secrets, environment variables, and pod affinity
         job_manifest = {
             "apiVersion": "batch/v1",
@@ -831,14 +932,15 @@ class DispachWkubeTask():
             "metadata": {
                 "name": job_name,
                 "labels": {
-                    "pvc_id": self.kwargs['pvc_id']
+                    "pvc_id": self.kwargs['pvc_id'],
+                    "job_name": job_name
                 }
             },
             "spec": {
                 "hostUsers": False,   # TODO make is configurable @wrufesh
                 "backoffLimit": 0,
                 "activeDeadlineSeconds": self.kwargs['timeout'],
-                "ttlSecondsAfterFinished": 0,
+                "ttlSecondsAfterFinished": 60*5,
                 "template": {
                     "metadata": {
                         "labels": {
@@ -871,47 +973,41 @@ class DispachWkubeTask():
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": float(self.kwargs['required_cores']),
-                                        "ephemeral-storage": self.kwargs['required_storage_local']
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
                                     },
                                      "requests": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": self.kwargs['required_cores'],
-                                        "ephemeral-storage": self.kwargs['required_storage_local']
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
                                     }
                                 },
+                               
                                 "volumeMounts": [
                                     {
                                         "name": f"{job_name}-agent-volume",
                                         "mountPath": "/mnt/agent"
                                     },
-                                    {
-                                        "name": self.kwargs['pvc_id'],
-                                        "mountPath": "/mnt/data"
-                                    },
-                                    {
-                                        "name": f"{job_name}-scrach-disk",
-                                        "mountPath": "/mnt/sd"
-                                    }
+                                    *[{
+                                        "name": volume["name"],
+                                        "mountPath": volume["mount_point"]
+                                    } for volume in self.volumes]
                                 ],
                                 
                                 "env": env_vars
                             }
                         ],
+                       
                         "volumes": [
-                            {
-                                "name": self.kwargs['pvc_id'],
-                                "persistentVolumeClaim": {
-                                    "claimName": self.kwargs['pvc_id']  # Name of the PVC to mount
-                                }
-                            },
                             {
                                 "name": f"{job_name}-agent-volume",
                                 "emptyDir": {}
                             },
-                            {
-                                "name": f"{job_name}-scrach-disk",
-                                "emptyDir": {}
-                            }
+                            *[{
+                               "name": volume["name"],
+                                "persistentVolumeClaim": {
+                                    "claimName": volume["name"]
+                                }
+                           } for volume in self.volumes]
                         ],
                         "affinity": {
                             "podAffinity": pod_affinity
@@ -947,7 +1043,6 @@ class DispachWkubeTask():
         if created_job:
             print("Created wkube Job")
 
-
         v1_pods_resources = self.api_cli.resources.get(api_version='v1', kind='Pod')
 
         while True:
@@ -957,7 +1052,7 @@ class DispachWkubeTask():
                 label_selector=f"job-name={job_name}"
             )
 
-            time.sleep(5)
+            time.sleep(2)
 
             if pods['items']:
                 break
@@ -970,9 +1065,95 @@ class DispachWkubeTask():
         if len(pods) != 1:
             raise ValueError("Exacly one pod should be present")
 
-
         self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
         self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
+
+
+
+    def stream_logs_until_event(self, pod_name, namespace, stop_event):
+        core_v1_api = self.get_core_v1_api()
+        try:
+            w = watch.Watch()
+            for line in w.stream(
+                core_v1_api.read_namespaced_pod_log,
+                name=pod_name,
+                namespace=namespace,
+                follow=True,
+                _preload_content=False,
+                timestamps=True,
+            ):
+                print(line.decode("utf-8").rstrip())
+                if stop_event.is_set():
+                    w.stop()
+                    break
+        except client.exceptions.ApiException as e:
+            print(f"Error while streaming logs: {e}")
+
+    def monitor_status_and_stop_log(self, pod_name, job_name, namespace, stop_event):
+        core_v1_api = self.api_cli.resources.get(api_version='v1', kind='Pod')
+        while True:
+            pod = core_v1_api.get(name=pod_name, namespace=namespace)
+            phase = pod['status']['phase']
+            print(f"Pod {pod_name} is in phase {phase}")
+            
+            if phase in ['Running', 'Succeeded']:
+                stop_event.set()
+                return phase
+            
+            if phase in ['Failed']:
+                stop_event.set()
+                # Handle failure
+                batch_v1_job = self.api_cli.resources.get(api_version='batch/v1', kind='Job')
+                delete_options = {
+                    'apiVersion': 'v1',
+                    'kind': 'DeleteOptions',
+                    'propagationPolicy': 'Foreground'
+                }
+                batch_v1_job.delete(name=job_name, namespace=namespace, body=delete_options)
+                current_task.retry()
+            
+            time.sleep(3)
+
+    def monitor_pod_with_early_logs(self, pod_name, job_name, namespace):
+        stop_event = threading.Event()
+
+        log_thread = threading.Thread(target=self.stream_logs_until_event, args=(pod_name, namespace, stop_event))
+        log_thread.start()
+
+        final_phase = self.monitor_status_and_stop_log(pod_name, job_name, namespace, stop_event)
+
+        log_thread.join()
+        print(f"Pod {pod_name} reached final phase: {final_phase}")
+
+    
+
+
+
+        # v1_pods_resources = self.api_cli.resources.get(api_version='v1', kind='Pod')
+
+        # while True:
+        
+        #     pods = v1_pods_resources.get(
+        #         namespace=env.WKUBE_K8_NAMESPACE, 
+        #         label_selector=f"job-name={job_name}"
+        #     )
+
+        #     time.sleep(5)
+
+        #     if pods['items']:
+        #         break
+        #     else:
+        #         print("Creating job pod.")
+
+    
+        # pods = [pod['metadata']['name'] for pod in pods['items']]
+
+        # if len(pods) != 1:
+        #     raise ValueError("Exacly one pod should be present")
+
+
+        # self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
+        # self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
        
 
     def monitor_pod(self, pod_name, job_name, namespace):

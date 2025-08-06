@@ -64,10 +64,10 @@ WORKDIR /home/ubuntu/app
 
 RUN chmod -R 755 /home/ubuntu/app
 
-COPY --chown=ubuntu:nonroot ./requirements.txt /home/ubuntu/app/requirements.txt
+COPY --chown=ubuntu:nonroot ./requirements /home/ubuntu/app/requirements
 
 RUN pip3 install --upgrade pip --break-system-packages
-RUN pip3 install -r /home/ubuntu/app/requirements.txt --break-system-packages
+RUN pip3 install -r /home/ubuntu/app/requirements/prod.txt --break-system-packages
 
 COPY --chown=ubuntu:nonroot . .
 

@@ -2,10 +2,8 @@ FROM python:3.11.2
 
 WORKDIR /app
 
-COPY ./requirements.txt /app/requirements.txt
+COPY ./requirements /app/requirements
 
-RUN pip install -r /app/requirements.txt
-
-COPY . .
+RUN pip install -r /app/requirements/prod.txt
 
 CMD python events_worker.py

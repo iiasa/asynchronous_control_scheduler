@@ -46,78 +46,101 @@ class RemoteStreamWriter(io.TextIOBase):
         self.chunk_size = chunk_size
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.log_counter = int(time.time())
-        self.verbose_unhealthy_report = Queue()
         self.job_is_unhealthy = threading.Event()
         self.stop_event = threading.Event()
         self.lock = threading.RLock()
         self.write_thread = threading.Thread(target=self._periodic_write)
         self.write_thread.start()
+        self.flush_in_progress = False
 
     def write(self, data):
         if self.job_is_unhealthy.is_set():
             self.stop_event.set()
+            with self.lock:
+                self.buffer += data
+                self.buffer += '\n **** Job is not healthy anymore **** \n'
+            self.final_flush()
             self.executor.shutdown(wait=False, cancel_futures=True)
-            
-            try:
-                verbose_error = self.verbose_unhealthy_report.get(timeout=10)
-            except QueueEmptyError:
-                verbose_error = "Cannot get error"
-            raise ValueError(verbose_error)
-        
+            raise ValueError("Job health reported to be bad.")
         with self.lock:
             self.buffer += data
 
     def _periodic_write(self):
         while not self.stop_event.is_set():
-            if self.job_is_unhealthy.is_set():
-                # Line below should trigger write function if there is nothing else from actual function to write.
-                print("Terminating job because of health issue.")
-            else:
-                time.sleep(10)
-                if not self.job_is_unhealthy.is_set():
-                    self.flush()
+            self.stop_event.wait(10)
+            if not self.job_is_unhealthy.is_set():
+                self.flush()
 
+
+    def final_flush(self):
+        with self.lock:
+            chunk = self.buffer
+            self.buffer = ''
+            filename = f"celery{self.log_counter}.log"
+            self.log_counter += 1
+
+        if chunk:
+            try:
+                self._send_chunk(chunk, filename)  # Synchronous flush
+            except Exception as e:
+                print(f"[RemoteStreamWriter] Final flush failed: {e}")
+    
     def flush(self):
         with self.lock:
-            if self.buffer:
-                chunk = self.buffer
-                self.buffer = ''
-                filename = f"celery{self.log_counter}.log"
-                self.log_counter += 1
-                self.executor.submit(self._send_chunk, chunk, filename)
-            else:
-                self.executor.submit(self.check_job_health)
-                
+            if self.flush_in_progress:
+                return
+
+            if not self.buffer:
+                self.flush_in_progress = True
+
+                def _health_check():
+                    try:
+                        self.check_job_health()
+                    finally:
+                        with self.lock:
+                            self.flush_in_progress = False
+
+                self.executor.submit(_health_check)
+                return
+
+            chunk = self.buffer
+            self.buffer = ''
+            filename = f"celery{self.log_counter}.log"
+            self.log_counter += 1
+            self.flush_in_progress = True
+
+        def _flush_task():
+            try:
+                self._send_chunk(chunk, filename)
+            finally:
+                with self.lock:
+                    self.flush_in_progress = False
+
+        self.executor.submit(_flush_task)
+                    
 
     def check_job_health(self):
         is_healthy = self.project_service.check_job_health()
         if not is_healthy:
-            self.verbose_unhealthy_report.put("Job is not healthy anymore.")
             self.job_is_unhealthy.set()
-            print("Set via health check")
 
                 
     def _send_chunk(self, chunk, filename):
         self._send_request(chunk, filename)
         
     def _send_request(self, chunk, filename):
-        try:
-            self.project_service.add_log_file(
-                    chunk.encode(),
-                    filename,
-                )
-        except Exception as err:
-            self.verbose_unhealthy_report.put(f"Unhealthy reason: {str(err)}")
+        is_healthy = self.project_service.add_log_file(
+                chunk.encode(),
+                filename,
+            )
+        if not is_healthy:
             self.job_is_unhealthy.set()
-            print("Set via log")
         
-        
-
     def close(self):
         self.last_close = True
         self.stop_event.set()
         self.write_thread.join()
-        self.flush()
+        self.final_flush()
         self.executor.shutdown(wait=True)        
 
 def capture_log(func):
