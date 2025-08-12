@@ -23,7 +23,7 @@ import threading
 from kubernetes import watch, client
 import time
 
-from acc_worker.k8_gateway_actions.cleanup_tasks import delete_pvc
+from acc_worker.k8_gateway_actions.periodic_tasks import delete_pvc
 
 from kubernetes.dynamic.exceptions import NotFoundError, ConflictError
 
@@ -593,7 +593,7 @@ class DispachWkubeTask():
             return None
 
     def get_graph_pvc_name(self):
-        return f"graph-pvc-{self.kwargs['job_id']}"
+        return f"graph-pvc-{self.kwargs['root_job_id']}"
 
     def get_graph_pvc_details(self):
         try:
@@ -614,34 +614,18 @@ class DispachWkubeTask():
         pvc = self.get_graph_pvc_details()
 
         if pvc:
-            phase = pvc.get('status', {}).get('phase', 'Unknown')
 
-            if self.kwargs['is_first_graph_job']:
-                delete_pvc(self.get_graph_pvc_name())
-                while True:
-                    pvc = self.get_graph_pvc_details()
-                    if not pvc:  # PVC is fully deleted
-                        break
-                    print(f"Waiting for existing graph PVC '{self.get_graph_pvc_name()}' to be fully deleted...")
-                    time.sleep(5)
-            else:
-                while phase not in ['Bound']:
-                    if phase == 'Lost':
-                        raise ValueError("Something unexpected happend. Existing graph PVC got lost may be because of underlying infrastructure.")
-                    
-                    print(f"Existing graph PVC: {self.get_graph_pvc_name()}: Current phase: {phase}")
-                    print(f"Waiting for existing graph  pvc: {self.get_graph_pvc_name()} to get bound to PV.")
-                    
-                    time.sleep(5)
-
-                    existing_passed_pvc = self.get_graph_pvc_details()
-                    if existing_passed_pvc:
-                        phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
-                    else:
-                        print(f"Existing graph PVC: {self.kwargs['pvc_id']}: details query returned None.")
-                        phase = 'Unknown'
-
+            if not self.kwargs['is_first_graph_job']:
                 return
+
+            # Deletes pvc when it is first graph job
+            delete_pvc(self.get_graph_pvc_name())
+            while True:
+                pvc = self.get_graph_pvc_details()
+                if not pvc:  # PVC is fully deleted
+                    break
+                print(f"Waiting for existing graph PVC '{self.get_graph_pvc_name()}' to be fully deleted...")
+                time.sleep(5)
 
 
         pvc_manifest = {
@@ -653,7 +637,7 @@ class DispachWkubeTask():
             "spec": {
                 "storageClassName": env.WKUBE_GRAPH_STORAGE_CLASS,
                 "accessModes": [
-                    "ReadWriteOnce"
+                    "ReadWriteMany"
                 ],
                 "resources": {
                     "requests": {
@@ -679,34 +663,17 @@ class DispachWkubeTask():
         pvc = self.get_workflow_pvc_details()
 
         if pvc:
-            phase = pvc.get('status', {}).get('phase', 'Unknown')
 
-            if self.kwargs['is_first_pipeline_job']:
-                delete_pvc(self.kwargs['pvc_id'])
-                while True:
-                    pvc = self.get_workflow_pvc_details()
-                    if not pvc:  # PVC is fully deleted
-                        break
-                    print(f"Waiting for existing workflow PVC '{self.kwargs['pvc_id']}' to be fully deleted...")
-                    time.sleep(5)
-            else:
-                while phase not in ['Bound']:
-                    if phase == 'Lost':
-                        raise ValueError("Something unexpected happend. Existing workflow  PVC got lost may be because of underlying infrastructure.")
-                    
-                    print(f"Existing workflow PVC: {self.kwargs['pvc_id']}: Current phase: {phase}")
-                    print(f"Waiting for existing workflow pvc: {self.kwargs['pvc_id']} to get bound to PV.")
-                    
-                    time.sleep(5)
-
-                    existing_passed_pvc = self.get_workflow_pvc_details()
-                    if existing_passed_pvc:
-                        phase = existing_passed_pvc.get('status', {}).get('phase', 'Unknown')
-                    else:
-                        print(f"Existing workflow PVC: {self.kwargs['pvc_id']}: details query returned None.")
-                        phase = 'Unknown'
-
+            if not self.kwargs['is_first_pipeline_job']:
                 return
+            
+            delete_pvc(self.kwargs['pvc_id'])
+            while True:
+                pvc = self.get_workflow_pvc_details()
+                if not pvc:  # PVC is fully deleted
+                    break
+                print(f"Waiting for existing workflow PVC '{self.kwargs['pvc_id']}' to be fully deleted...")
+                time.sleep(5)
 
 
         pvc_manifest = {
@@ -733,7 +700,7 @@ class DispachWkubeTask():
         v1_pvc = self.api_cli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
         created_pvc = v1_pvc.create(namespace=env.WKUBE_K8_NAMESPACE, body=pvc_manifest)
 
-        print("Created PVC:", created_pvc)
+        print("Created pipeline PVC:", created_pvc)
 
         return
 
@@ -845,7 +812,7 @@ class DispachWkubeTask():
 
         ''' % (escape_character(self.kwargs['command'], '"'))
 
-        
+
         main_container_command = ["/bin/sh", "-c", main_container_shell_script]
         
         # shell_script = 'binary_url="https://testwithfastapi.s3.amazonaws.com/wagt-v0.5.3-linux-amd/wagt";binary_file="binary";download_with_curl(){ if command -v curl &>/dev/null;then curl -sSL "$binary_url" -o "$binary_file";return $?;else return 1;fi;};download_with_wget(){ if command -v wget &>/dev/null;then wget -q "$binary_url" -O "$binary_file";return $?;else return 1;fi;};if download_with_curl;then echo "Wagt downloaded successfully with curl.";elif download_with_wget;then echo "Wagt downloaded successfully with wget.";else echo "Error: Neither curl nor wget is available.";exit 1;fi;chmod +x "$binary_file";echo "Executing binary...";./"$binary_file" "%s";echo "Cleaning up...";rm "$binary_file";echo "Script execution completed."' % (escape_character(self.kwargs['command'], '"'))

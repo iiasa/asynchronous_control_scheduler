@@ -14,4 +14,11 @@ beat_schedule = {
         ),
         'args': [],
     },
+    'periodic_stalled_jobs_status_update': {
+        'task': 'acc_native_jobs.update_stalled_jobs_status',
+        'schedule': crontab(
+            minute='*/30'
+        ),
+        'args': [],
+    },
 }
