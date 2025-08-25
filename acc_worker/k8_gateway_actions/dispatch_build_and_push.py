@@ -1010,30 +1010,32 @@ class DispachWkubeTask():
         if created_job:
             print("Created wkube Job")
 
-        v1_pods_resources = self.api_cli.resources.get(api_version='v1', kind='Pod')
+        # BELOW CODE IS REQUIRED FOR DEBUGGING
 
-        while True:
+        # v1_pods_resources = self.api_cli.resources.get(api_version='v1', kind='Pod')
+
+        # while True:
         
-            pods = v1_pods_resources.get(
-                namespace=env.WKUBE_K8_NAMESPACE, 
-                label_selector=f"job-name={job_name}"
-            )
+        #     pods = v1_pods_resources.get(
+        #         namespace=env.WKUBE_K8_NAMESPACE, 
+        #         label_selector=f"job-name={job_name}"
+        #     )
 
-            time.sleep(2)
+        #     time.sleep(2)
 
-            if pods['items']:
-                break
-            else:
-                print("Creating job pod.")
+        #     if pods['items']:
+        #         break
+        #     else:
+        #         print("Creating job pod.")
 
     
-        pods = [pod['metadata']['name'] for pod in pods['items']]
+        # pods = [pod['metadata']['name'] for pod in pods['items']]
 
-        if len(pods) != 1:
-            raise ValueError("Exacly one pod should be present")
+        # if len(pods) != 1:
+        #     raise ValueError("Exacly one pod should be present")
 
-        self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
-        self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
+        # self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
+        # self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
 
 
 
