@@ -836,6 +836,7 @@ class DispachWkubeTask():
             *[dict(name=key, value=str(job_secrets[key])) for key in job_secrets],
             {"name": "JOB_ID", "value": str(self.kwargs['job_id'])},
             {"name": "POD_ID", "value": str(job_name)},
+            {"name": "ROOT_JOB_ID", "value": str(self.kwargs['root_job_id'])},
 
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
@@ -914,7 +915,7 @@ class DispachWkubeTask():
                         }
                     },
                     "spec": {
-                        "activeDeadlineSeconds": self.kwargs['timeout'],
+                        # "activeDeadlineSeconds": self.kwargs['timeout'],
                         "terminationGracePeriodSeconds": 30,
                         "initContainers": [
                             {
