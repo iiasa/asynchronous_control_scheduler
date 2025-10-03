@@ -841,10 +841,12 @@ class DispachWkubeTask():
             {"name": "ACC_JOB_TOKEN", "value": self.kwargs['job_token']},
             {"name": "ACC_JOB_GATEWAY_SERVER", "value": f"{env.ACCELERATOR_CLI_BASE_URL}"},
 
-            {"name": "TUNNEL_GATEWAY_SSH_USER", "value": 'root'},
-            {"name": "TUNNEL_GATEWAY_SSH_SERVER", "value": 'wkube.iiasa.ac.at'},
+            # TODO check ssh user 
+            {"name": "TUNNEL_GATEWAY_SSH_USER", "value": 'linuxserver.io'},
+            {"name": "TUNNEL_GATEWAY_SSH_SERVER", "value": 'hpg1021'},
+            {"name": "TUNNEL_GATEWAY_SSH_PORT", "value": '30188'},
             {"name": "TUNNEL_GATEWAY_DOMAIN", "value": 'wkube.iiasa.ac.at'},
-            {"name": "TUNNEL_GATEWAY_SSH_PRIVATE_KEY", "value": '/mnt/data,/mnt/sd'},
+            {"name": "TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64", "value": f"{env.TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64}"},
             {
                 "name": "CLUSTER_NODE_NAME",
                 "valueFrom": {

@@ -25,6 +25,8 @@ class AppSetting():
 
         self.ACCELERATOR_APP_TOKEN: Optional[str] = os.environ.get('ACCELERATOR_APP_TOKEN', None)
 
+        self.TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64: Optional[str] = os.environ.get('TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64', None)
+
 @lru_cache
 def get_environment_variables():
     settings = AppSetting()
