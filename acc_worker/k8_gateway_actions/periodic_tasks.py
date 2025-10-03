@@ -38,13 +38,27 @@ def delete_pvc(pvc_name):
     pvc_resource = dcli.resources.get(api_version='v1', kind='PersistentVolumeClaim')
 
     try:
-        # Delete the PVC
+        # 1️⃣ Patch the PVC to remove finalizers (if any)
+        patch_body = {
+            "metadata": {
+                "finalizers": None
+            }
+        }
+        pvc_resource.patch(
+            name=pvc_name,
+            namespace=env.WKUBE_K8_NAMESPACE,
+            body=patch_body
+        )
+        print(f"Patched finalizers for PVC '{pvc_name}' in namespace '{env.WKUBE_K8_NAMESPACE}'.")
+
+        # 2️⃣ Delete the PVC
         pvc_resource.delete(
             name=pvc_name,
             namespace=env.WKUBE_K8_NAMESPACE,
             grace_period_seconds=0
         )
         print(f"PVC '{pvc_name}' in namespace '{env.WKUBE_K8_NAMESPACE}' deleted successfully.")
+
     except Exception as e:
         print(f"Error deleting PVC '{pvc_name}' in namespace '{env.WKUBE_K8_NAMESPACE}': {e}")
 
@@ -133,7 +147,8 @@ def delete_orphan_pvcs():
 
 
             print(f"Deleting PVC: {pvc_name}")
-            pvc_api.delete(name=pvc_name, namespace=env.WKUBE_K8_NAMESPACE)
+            # pvc_api.delete(name=pvc_name, namespace=env.WKUBE_K8_NAMESPACE)
+            delete_pvc(pvc_name)
 
 
 
