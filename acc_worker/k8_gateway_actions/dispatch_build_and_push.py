@@ -907,7 +907,6 @@ class DispachWkubeTask():
                 }
             },
             "spec": {
-                "hostUsers": False,   # TODO make is configurable @wrufesh
                 "backoffLimit": 0,
                 "ttlSecondsAfterFinished": 60*5,
                 "template": {
@@ -918,6 +917,7 @@ class DispachWkubeTask():
                     },
                     "spec": {
                         # "activeDeadlineSeconds": self.kwargs['timeout'],
+                        "hostUsers": False,   # TODO make is configurable @wrufesh
                         "terminationGracePeriodSeconds": 30,
                         "initContainers": [
                             {
