@@ -846,6 +846,7 @@ class DispachWkubeTask():
             {"name": "TUNNEL_GATEWAY_SSH_SERVER", "value": 'hpg1021'},
             {"name": "TUNNEL_GATEWAY_SSH_PORT", "value": '30188'},
             {"name": "TUNNEL_GATEWAY_DOMAIN", "value": 'wkube.iiasa.ac.at'},
+            {"name": "TUNNEL_GATEWAY_PORT", "value": ':30153'},
             {"name": "TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64", "value": f"{env.TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64}"},
             {
                 "name": "CLUSTER_NODE_NAME",
