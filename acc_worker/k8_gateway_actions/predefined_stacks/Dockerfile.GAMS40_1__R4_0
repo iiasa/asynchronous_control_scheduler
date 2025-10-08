@@ -37,49 +37,7 @@ RUN Rscript /code/init.R;
 
 COPY . /code
 
-ENTRYPOINT ["bash", "-c", "\
-cat <<'EOF' | bash
-set -e
-
-# Ensure that 'gams_license' is defined
-if [ -z \"$gams_license\" ]; then
-  echo 'Error: Environment variable gams_license is not set.'
-  exit 1
-fi
-
-# Ensure that 'scenario_ids' is defined
-if [ -z \"$scenario_ids\" ]; then
-  echo 'Error: Environment variable scenario_ids is not set.'
-  exit 1
-fi
-
-# Ensure that 'until_period' is defined
-if [ -z \"$until_period\" ]; then
-  echo 'Error: Environment variable until_period is not set.'
-  exit 1
-fi
-
-OUTPUT_FILE=\"/opt/gams/gams${LATEST_SHORT}_linux_${GAMS_BIT_ARC}_sfx/gamslice.txt\"
-OUTPUT_DIR=\$(dirname \"$OUTPUT_FILE\")
-
-if [ ! -d \"$OUTPUT_DIR\" ]; then
-  echo \"Creating directory $OUTPUT_DIR\"
-  mkdir -p \"$OUTPUT_DIR\"
-fi
-
-echo \"$gams_license\" | base64 --decode > \"$OUTPUT_FILE\"
-
-if [ -f \"$OUTPUT_FILE\" ]; then
-  echo \"License file successfully written to $OUTPUT_FILE\"
-else
-  echo \"Error: Failed to write the license file to $OUTPUT_FILE\"
-  exit 1
-fi
-
-# 🔥 Hand off to CMD
-exec \"$@\"
-EOF
-", "--"]
+ENTRYPOINT ["bash", "-c", "set -e; if [ -z \"$gams_license\" ]; then echo 'Error: Environment variable gams_license is not set.'; exit 1; fi; if [ -z \"$scenario_ids\" ]; then echo 'Error: Environment variable scenario_ids is not set.'; exit 1; fi; if [ -z \"$until_period\" ]; then echo 'Error: Environment variable until_period is not set.'; exit 1; fi; OUTPUT_FILE=\"/opt/gams/gams${LATEST_SHORT}_linux_${GAMS_BIT_ARC}_sfx/gamslice.txt\"; OUTPUT_DIR=$(dirname \"$OUTPUT_FILE\"); if [ ! -d \"$OUTPUT_DIR\" ]; then echo \"Creating directory $OUTPUT_DIR\"; mkdir -p \"$OUTPUT_DIR\"; fi; echo \"$gams_license\" | base64 --decode > \"$OUTPUT_FILE\"; if [ -f \"$OUTPUT_FILE\" ]; then echo \"License file successfully written to $OUTPUT_FILE\"; else echo \"Error: Failed to write the license file to $OUTPUT_FILE\"; exit 1; fi; exec \"$@\"", "--"]
 
 CMD ["R"]
 
