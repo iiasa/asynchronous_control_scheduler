@@ -67,7 +67,7 @@ class BaseStack(str, enum.Enum):
     """
     PYTHON3_7 = 'PYTHON3_7'
     R4_4 = 'R4_4'
-    GAMS40_1__R4_0 = 'GAMS40_1__R4_0'
+    GAMS40_1__R4_4 = 'GAMS40_1__R4_4'
     WINE64__CONSOLE = 'WINE64__CONSOLE'
 
 def exec_command(command, raise_exception=True, cwd=None):
@@ -213,12 +213,13 @@ class OCIImageBuilder:
         return self.create_and_monitor_job(batch_v1_job, job_name)
 
     def create_and_monitor_job(self, batch_v1_job, job_name):
-        # Prepare env vars - inherit all build-related env from current process
+        # Prepare env vars - inherit all environment from current process
         env_vars = []
         for key, value in os.environ.items():
-            # Pass registry credentials and building tools related env
-            if any(p in key for p in ['IMAGE_REGISTRY', 'OCI_', 'WKUBE_', 'JOBSTORE_', 'ACCELERATOR_']):
-                env_vars.append({"name": key, "value": str(value)})
+            # Skip some k8s-specific env vars that might interfere
+            if key in ['KUBERNETES_SERVICE_HOST', 'KUBERNETES_SERVICE_PORT', 'KUBERNETES_PORT', 'KUBERNETES_PORT_443_TCP', 'KUBERNETES_PORT_443_TCP_ADDR', 'KUBERNETES_PORT_443_TCP_PORT', 'KUBERNETES_PORT_443_TCP_PROTO']:
+                continue
+            env_vars.append({"name": key, "value": str(value)})
 
         # Explicitly add current OCIImageBuilder parameters as env vars to the builder
         builder_env = {
@@ -227,9 +228,10 @@ class OCIImageBuilder:
             "BUILDER_DOCKERFILE": self.dockerfile or "",
             "BUILDER_BASE_STACK": self.base_stack or "",
             "BUILDER_FORCE_BUILD": str(self.force_build),
-            "BUILDER_USER_ID": str(self.user_id),
-            "BUILDER_JOB_NAME": self.job_name,
-            "BUILDER_TAG": self.image_tag
+            "BUILDER_USER_ID": str(self.user_id or ""),
+            "BUILDER_JOB_NAME": self.job_name or "",
+            "BUILDER_TAG": self.image_tag,
+            "BUILDER_JOB_SECRETS_B64": base64.b64encode(json.dumps(self.job_secrets).encode()).decode()
         }
         for k, v in builder_env.items():
             env_vars.append({"name": k, "value": v})
@@ -248,12 +250,13 @@ class OCIImageBuilder:
                             "env": env_vars,
                             "command": [
                                 "python3", "-c", 
-                                "import os; from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
+                                "import os, base64, json; from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
+                                "job_secrets = json.loads(base64.b64decode(os.environ['BUILDER_JOB_SECRETS_B64']).decode()); "
                                 "builder = OCIImageBuilder(); "
                                 "builder(git_repo=os.environ['BUILDER_GIT_REPO'], version=os.environ['BUILDER_VERSION'], "
-                                "job_secrets={}, dockerfile=os.environ['BUILDER_DOCKERFILE'] or None, "
+                                "job_secrets=job_secrets, dockerfile=os.environ['BUILDER_DOCKERFILE'] or None, "
                                 "base_stack=os.environ['BUILDER_BASE_STACK'] or None, force_build=os.environ['BUILDER_FORCE_BUILD'] == 'True', "
-                                "user_id=os.environ['BUILDER_USER_ID'], job_name=os.environ['BUILDER_JOB_NAME'], internal_build=True)"
+                                "user_id=os.environ['BUILDER_USER_ID'] or None, job_name=os.environ['BUILDER_JOB_NAME'] or None, internal_build=True)"
                             ],
                             "securityContext": {"privileged": True} # Needed for buildah in many k8s setups
                         }],
