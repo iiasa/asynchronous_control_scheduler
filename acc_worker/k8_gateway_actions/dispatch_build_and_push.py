@@ -30,7 +30,7 @@ from kubernetes.dynamic.exceptions import NotFoundError, ConflictError
 from accli import AjobCliService
 
 from acc_worker.configs.Environment import get_environment_variables
-from acc_worker.acc_native_jobs.exceptions import WkubeRetryException
+
 from .registries import DEFAULT_REGISTRIES, create_user_registry_secret
 
 env = get_environment_variables()
