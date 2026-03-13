@@ -183,31 +183,43 @@ class OCIImageBuilder:
         
         try:
             job = batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
-            status = job.status
             
-            if status.active:
-                print(f"Job {job_name} is already active. Streaming logs...")
-                return self.monitor_and_stream_logs(job_name)
-            
-            if status.succeeded:
-                print(f"Job {job_name} succeeded previously. Verifying registry...")
-                if self.tag_exists():
-                    return self.image_tag
-                else:
-                    print(f"Image not found in registry despite successful job. Deleting stale job and restarting...")
-                    batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, propagation_policy='Foreground')
-                    # Wait for deletion
-                    for _ in range(12): # Wait up to 60s
-                        try:
-                            batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
-                            time.sleep(5)
-                        except NotFoundError:
-                            break
-            
-            if status.failed:
-                print(f"Job {job_name} failed previously. Streaming logs and exiting...")
-                self.monitor_and_stream_logs(job_name)
-                raise ValueError(f"Build job {job_name} failed.")
+            if getattr(self, 'force_build', False):
+                print(f"Force build enabled. Deleting existing job {job_name}...")
+                batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, propagation_policy='Foreground')
+                # Wait for deletion
+                for _ in range(12): # Wait up to 60s
+                    try:
+                        batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
+                        time.sleep(5)
+                    except NotFoundError:
+                        break
+            else:
+                status = job.status
+                
+                if status.active:
+                    print(f"Job {job_name} is already active. Streaming logs...")
+                    return self.monitor_and_stream_logs(job_name)
+                
+                if status.succeeded:
+                    print(f"Job {job_name} succeeded previously. Verifying registry...")
+                    if self.tag_exists():
+                        return self.image_tag
+                    else:
+                        print(f"Image not found in registry despite successful job. Deleting stale job and restarting...")
+                        batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, propagation_policy='Foreground')
+                        # Wait for deletion
+                        for _ in range(12): # Wait up to 60s
+                            try:
+                                batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
+                                time.sleep(5)
+                            except NotFoundError:
+                                break
+                
+                elif status.failed:
+                    print(f"Job {job_name} failed previously. Streaming logs and exiting...")
+                    self.monitor_and_stream_logs(job_name)
+                    raise ValueError(f"Build job {job_name} failed.")
 
         except NotFoundError:
             pass
