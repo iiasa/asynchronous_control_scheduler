@@ -172,6 +172,9 @@ class OCIImageBuilder:
         name = re.sub(r'-+', '-', name).strip('-')
         return f"build-{name}"[:63].rstrip('-')
 
+    def get_image_pull_secrets(self):
+        return list(DEFAULT_REGISTRIES.keys())
+
     def dispatch_k8s_job(self):
         api_cli = self.get_api_cli()
         batch_v1_job = api_cli.resources.get(api_version='batch/v1', kind='Job')
@@ -236,6 +239,8 @@ class OCIImageBuilder:
         for k, v in builder_env.items():
             env_vars.append({"name": k, "value": v})
 
+        image_pull_secrets = self.get_image_pull_secrets()
+
         job_manifest = {
             "apiVersion": "batch/v1",
             "kind": "Job",
@@ -244,6 +249,7 @@ class OCIImageBuilder:
                 "backoffLimit": 0,
                 "template": {
                     "spec": {
+                        "imagePullSecrets": [{"name": secret} for secret in image_pull_secrets],
                         "containers": [{
                             "name": "builder",
                             "image": env.OCI_BUILDER_IMAGE,
