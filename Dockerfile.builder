@@ -1,3 +1,4 @@
+# This is offloaded k8s builder image
 FROM ubuntu:24.04
 
 ENV GID=99
