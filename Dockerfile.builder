@@ -6,23 +6,14 @@ ENV STORAGE_DRIVER=overlay
 ENV STORAGE_ROOT=/home/ubuntu/.local/share/containers/storage
 
 RUN apt update && \
-    apt install -y sudo pkg-config cmake libtool autoconf python3-pip git wget
+    apt install -y sudo pkg-config cmake libtool autoconf python3-pip git software-properties-common curl buildah skopeo fuse-overlayfs slirp4netns
 
 RUN passwd -l ubuntu
 RUN addgroup --gid $GID nonroot
 RUN usermod -aG nonroot ubuntu
 RUN echo 'ubuntu ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
-
-RUN apt-get install -y software-properties-common curl
-RUN apt-get install -y buildah 
-RUN apt-get install -y skopeo
-RUN apt-get install -y fuse-overlayfs
-RUN apt-get install -y slirp4netns
-
-
-
-
+# Setup containers config
 RUN cat <<EOF > /etc/containers/registries.conf 
 unqualified-search-registries = [
   "docker.io",
@@ -32,10 +23,6 @@ unqualified-search-registries = [
 location="docker.io"
     [[registry.mirror]]
     location="mirror.gcr.io"
-
-[[registry]]
-location = "registry:8443"
-insecure = true
 
 [engine]
 short-name-mode = "permissive"
@@ -67,17 +54,9 @@ RUN chmod -R 755 /home/ubuntu/app
 COPY --chown=ubuntu:nonroot ./requirements /home/ubuntu/app/requirements
 
 RUN pip3 install --upgrade pip --break-system-packages
-RUN pip3 install -r /home/ubuntu/app/requirements/dev.txt --break-system-packages
+RUN pip3 install -r /home/ubuntu/app/requirements/prod.txt --break-system-packages
 
-CMD /bin/sh dev_entrypoint.sh
+COPY --chown=ubuntu:nonroot . .
 
-
-# sudo tee /var/lib/rancher/k3s/agent/etc/containerd/certs.d/registry:8443/hosts.toml > /dev/null <<EOF
-# server = "registry:8443"
-
-# [host."http://registry:8443"]
-#   capabilities = ["pull", "resolve", "push"]
-#   skip_verify = true
-#   username = "myregistry"
-#   password = "myregistrypassword"
-# EOF
+# The entrypoint will be overridden by the K8s Job command
+CMD ["python3", "-m", "acc_worker.k8_gateway_actions.dispatch_build_and_push"]

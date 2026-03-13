@@ -106,8 +106,10 @@ class OCIImageBuilder:
             base_stack: Union[BaseStack, None]=None,
             force_build=False,
             user_id=None,
-            job_name=None
+            job_name=None,
+            internal_build=False
         ):
+        self.internal_build = internal_build
         self.git_repo = git_repo.lower()
         self.version = version
         self.dockerfile = dockerfile
@@ -118,10 +120,8 @@ class OCIImageBuilder:
         self.job_name = job_name # This is queue task id
 
         self.set_image_building_site()
-
         self.set_dockerfile_path()
-        
-        
+
         if self.tag_exists() and (not self.force_build):
             print(
                 f"WKube Builder: Skipping image build as image for given repo and"
@@ -129,15 +129,190 @@ class OCIImageBuilder:
             )
             return self.image_tag
 
-        try:
-            self.prepare_files()
-            self.build()
-            self.push_to_registry()
-            self.clean_up()
-        finally:
-            self.clear_site()
+        if self.internal_build:
+            # This is the actual build process running inside the K8s builder Job
+            try:
+                self.prepare_files()
+                self.build()
+                self.push_to_registry()
+                self.clean_up()
+            finally:
+                self.clear_site()
+            return self.image_tag
+
+        return self.dispatch_k8s_job()
+
+    def _init_k8s_config(self):
+        config.load_kube_config_from_dict(
+            config_dict=json.loads(
+                base64.b64decode(
+                    env.WKUBE_SECRET_JSON_B64.encode()
+                )
+            )
+        )
+        kube_config = client.Configuration().get_default_copy()
+        kube_config.verify_ssl = False
+        client.Configuration.set_default(kube_config)
+
+    def get_api_cli(self):
+        self._init_k8s_config()
+        return dynamic.DynamicClient(api_client.ApiClient())
+
+    def get_core_v1_api(self):
+        self._init_k8s_config()
+        return client.CoreV1Api()
+
+    @property
+    def k8s_job_name(self):
+        """Generate a K8s-compliant Job name from the image tag."""
+        # K8s job name must be DNS-compliant (alphanumeric, dots, dashes, < 63 chars)
+        name = self.image_tag.split('/')[-1] # use the image name part
+        name = name.lower()
+        name = re.sub(r'[^a-z0-9\-]', '-', name)
+        name = re.sub(r'-+', '-', name).strip('-')
+        return f"build-{name}"[:63].rstrip('-')
+
+    def dispatch_k8s_job(self):
+        api_cli = self.get_api_cli()
+        batch_v1_job = api_cli.resources.get(api_version='batch/v1', kind='Job')
         
-        return self.image_tag
+        job_name = self.k8s_job_name
+        
+        try:
+            job = batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
+            status = job.status
+            
+            if status.active:
+                print(f"Job {job_name} is already active. Streaming logs...")
+                return self.monitor_and_stream_logs(job_name)
+            
+            if status.succeeded:
+                print(f"Job {job_name} succeeded previously. Verifying registry...")
+                if self.tag_exists():
+                    return self.image_tag
+                else:
+                    print(f"Image not found in registry despite successful job. Deleting stale job and restarting...")
+                    batch_v1_job.delete(name=job_name, namespace=env.WKUBE_K8_NAMESPACE, propagation_policy='Foreground')
+                    # Wait for deletion
+                    for _ in range(12): # Wait up to 60s
+                        try:
+                            batch_v1_job.get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
+                            time.sleep(5)
+                        except NotFoundError:
+                            break
+            
+            if status.failed:
+                print(f"Job {job_name} failed previously. Streaming logs and exiting...")
+                self.monitor_and_stream_logs(job_name)
+                raise ValueError(f"Build job {job_name} failed.")
+
+        except NotFoundError:
+            pass
+
+        # Create new Job
+        return self.create_and_monitor_job(batch_v1_job, job_name)
+
+    def create_and_monitor_job(self, batch_v1_job, job_name):
+        # Prepare env vars - inherit all build-related env from current process
+        env_vars = []
+        for key, value in os.environ.items():
+            # Pass registry credentials and building tools related env
+            if any(p in key for p in ['IMAGE_REGISTRY', 'OCI_', 'WKUBE_', 'JOBSTORE_', 'ACCELERATOR_']):
+                env_vars.append({"name": key, "value": str(value)})
+
+        # Explicitly add current OCIImageBuilder parameters as env vars to the builder
+        builder_env = {
+            "BUILDER_GIT_REPO": self.git_repo,
+            "BUILDER_VERSION": self.version,
+            "BUILDER_DOCKERFILE": self.dockerfile or "",
+            "BUILDER_BASE_STACK": self.base_stack or "",
+            "BUILDER_FORCE_BUILD": str(self.force_build),
+            "BUILDER_USER_ID": str(self.user_id),
+            "BUILDER_JOB_NAME": self.job_name,
+            "BUILDER_TAG": self.image_tag
+        }
+        for k, v in builder_env.items():
+            env_vars.append({"name": k, "value": v})
+
+        job_manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": job_name, "namespace": env.WKUBE_K8_NAMESPACE},
+            "spec": {
+                "backoffLimit": 0,
+                "template": {
+                    "spec": {
+                        "containers": [{
+                            "name": "builder",
+                            "image": env.OCI_BUILDER_IMAGE,
+                            "env": env_vars,
+                            "command": [
+                                "python3", "-c", 
+                                "import os; from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
+                                "builder = OCIImageBuilder(); "
+                                "builder(git_repo=os.environ['BUILDER_GIT_REPO'], version=os.environ['BUILDER_VERSION'], "
+                                "job_secrets={}, dockerfile=os.environ['BUILDER_DOCKERFILE'] or None, "
+                                "base_stack=os.environ['BUILDER_BASE_STACK'] or None, force_build=os.environ['BUILDER_FORCE_BUILD'] == 'True', "
+                                "user_id=os.environ['BUILDER_USER_ID'], job_name=os.environ['BUILDER_JOB_NAME'], internal_build=True)"
+                            ],
+                            "securityContext": {"privileged": True} # Needed for buildah in many k8s setups
+                        }],
+                        "restartPolicy": "Never"
+                    }
+                }
+            }
+        }
+
+        try:
+            batch_v1_job.create(namespace=env.WKUBE_K8_NAMESPACE, body=job_manifest)
+            print(f"Created build job {job_name}")
+        except ConflictError:
+            print(f"Job {job_name} was created by another process. Attaching...")
+        
+        return self.monitor_and_stream_logs(job_name)
+
+    def monitor_and_stream_logs(self, job_name):
+        core_v1 = self.get_core_v1_api()
+        api_cli = self.get_api_cli()
+        
+        # Wait for Pod to be created and find it
+        pod_name = None
+        for _ in range(20): # 60 seconds timeout
+            pods = core_v1.list_namespaced_pod(namespace=env.WKUBE_K8_NAMESPACE, label_selector=f"job-name={job_name}")
+            if pods.items:
+                pod_name = pods.items[0].metadata.name
+                break
+            time.sleep(3)
+        
+        if not pod_name:
+            raise ValueError(f"Could not find pod for job {job_name}")
+
+        # Wait for container to be ready or at least not pending
+        for _ in range(20):
+            pod = core_v1.read_namespaced_pod(name=pod_name, namespace=env.WKUBE_K8_NAMESPACE)
+            if pod.status.phase != 'Pending':
+                break
+            print(f"Waiting for pod {pod_name} to start (current phase: {pod.status.phase})...")
+            time.sleep(3)
+
+        # Stream logs
+        try:
+            w = watch.Watch()
+            for line in w.stream(core_v1.read_namespaced_pod_log, name=pod_name, namespace=env.WKUBE_K8_NAMESPACE, follow=True):
+                print(f"[K8S-BUILD] {line}")
+        except Exception as e:
+            print(f"Log streaming interrupted: {e}")
+
+        # Final check
+        while True:
+            job = api_cli.resources.get(api_version='batch/v1', kind='Job').get(name=job_name, namespace=env.WKUBE_K8_NAMESPACE)
+            if job.status.succeeded:
+                if self.tag_exists():
+                    return self.image_tag
+                raise ValueError(f"Job {job_name} succeeded but image is missing in registry.")
+            if job.status.failed:
+                raise ValueError(f"Build job {job_name} failed.")
+            time.sleep(5)
 
     @cached_property
     def commit_hash(self):
