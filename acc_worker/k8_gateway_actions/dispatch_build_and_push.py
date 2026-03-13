@@ -248,6 +248,20 @@ class OCIImageBuilder:
                             "name": "builder",
                             "image": env.OCI_BUILDER_IMAGE,
                             "env": env_vars,
+                            "resources": {
+                                "requests": {
+                                    "cpu": "1",
+                                    "memory": "2Gi"
+                                },
+                                "limits": {
+                                    "cpu": "4",
+                                    "memory": "8Gi"
+                                }
+                            },
+                            "volumeMounts": [{
+                                "name": "container-storage",
+                                "mountPath": "/home/ubuntu/.local/share/containers/storage"
+                            }],
                             "command": [
                                 "python3", "-c", 
                                 "import os, base64, json; from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
@@ -259,6 +273,10 @@ class OCIImageBuilder:
                                 "user_id=os.environ['BUILDER_USER_ID'] or None, job_name=os.environ['BUILDER_JOB_NAME'] or None, internal_build=True)"
                             ],
                             "securityContext": {"privileged": True} # Needed for buildah in many k8s setups
+                        }],
+                        "volumes": [{
+                            "name": "container-storage",
+                            "emptyDir": {}
                         }],
                         "restartPolicy": "Never"
                     }
