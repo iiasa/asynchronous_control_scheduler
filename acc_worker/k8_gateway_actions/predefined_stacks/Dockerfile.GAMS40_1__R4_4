@@ -2,8 +2,7 @@ FROM debian:bullseye-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg2 dirmngr software-properties-common ca-certificates && \
-    gpg --keyserver keyserver.ubuntu.com --recv-key 'B8F25A8A73EACF41' && \
-    gpg --export 'B8F25A8A73EACF41' | tee /usr/share/keyrings/cran-archive-keyring.gpg > /dev/null && \
+    curl -fsSL "http://keyserver.ubuntu.com:80/pks/lookup?op=get&search=0xB8F25A8A73EACF41" | gpg --dearmor -o /usr/share/keyrings/cran-archive-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cran-archive-keyring.gpg] https://cloud.r-project.org/bin/linux/debian bullseye-cran40/" | tee /etc/apt/sources.list.d/cran.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends r-base && \
