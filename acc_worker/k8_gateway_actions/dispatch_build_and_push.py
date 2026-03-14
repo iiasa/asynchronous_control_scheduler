@@ -294,7 +294,19 @@ class OCIImageBuilder:
                         }],
                         "volumes": [{
                             "name": "container-storage",
-                            "emptyDir": {}
+                            "ephemeral": {
+                                "volumeClaimTemplate": {
+                                    "spec": {
+                                        "storageClassName": env.WKUBE_WORKFLOW_STORAGE_CLASS,
+                                        "accessModes": ["ReadWriteOnce"],
+                                        "resources": {
+                                            "requests": {
+                                                "storage": "10Gi"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }],
                         "restartPolicy": "Never"
                     }
