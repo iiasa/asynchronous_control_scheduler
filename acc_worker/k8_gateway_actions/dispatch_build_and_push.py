@@ -132,10 +132,21 @@ class OCIImageBuilder:
         if self.internal_build:
             # This is the actual build process running inside the K8s builder Job
             try:
+                print(f"Internal build started for {self.git_repo}:{self.version}", flush=True)
+                print("Preparing files...", flush=True)
                 self.prepare_files()
+                print("Starting build...", flush=True)
                 self.build()
+                print("Pushing to registry...", flush=True)
                 self.push_to_registry()
+                print("Cleaning up...", flush=True)
                 self.clean_up()
+                print("Internal build completed successfully.", flush=True)
+            except Exception as e:
+                print(f"Internal build failed: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                raise
             finally:
                 self.clear_site()
             return self.image_tag
@@ -246,7 +257,8 @@ class OCIImageBuilder:
             "BUILDER_USER_ID": str(self.user_id or ""),
             "BUILDER_JOB_NAME": self.job_name or "",
             "BUILDER_TAG": self.image_tag,
-            "BUILDER_JOB_SECRETS_B64": base64.b64encode(json.dumps(self.job_secrets).encode()).decode()
+            "BUILDER_JOB_SECRETS_B64": base64.b64encode(json.dumps(self.job_secrets).encode()).decode(),
+            "PYTHONUNBUFFERED": "1"
         }
         for k, v in builder_env.items():
             env_vars.append({"name": k, "value": v})
@@ -281,14 +293,25 @@ class OCIImageBuilder:
                                 "mountPath": "/home/ubuntu/.local/share/containers/storage"
                             }],
                             "command": [
-                                "python3", "-c", 
-                                "import os, base64, json; from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
-                                "job_secrets = json.loads(base64.b64decode(os.environ['BUILDER_JOB_SECRETS_B64']).decode()); "
-                                "builder = OCIImageBuilder(); "
-                                "builder(git_repo=os.environ['BUILDER_GIT_REPO'], version=os.environ['BUILDER_VERSION'], "
-                                "job_secrets=job_secrets, dockerfile=os.environ['BUILDER_DOCKERFILE'] or None, "
-                                "base_stack=os.environ['BUILDER_BASE_STACK'] or None, force_build=os.environ['BUILDER_FORCE_BUILD'] == 'True', "
-                                "user_id=os.environ['BUILDER_USER_ID'] or None, job_name=os.environ['BUILDER_JOB_NAME'] or None, internal_build=True)"
+                                "/bin/sh", "-c", 
+                                "echo '--- Container Diagnostics ---'; "
+                                "id; "
+                                "ls -ld /home/ubuntu/.local/share/containers/storage; "
+                                "echo '--- Starting Python Builder ---'; "
+                                "python3 -u -c \"import os, base64, json, sys; "
+                                "print('Builder container process started...', flush=True); "
+                                "try: "
+                                "    from acc_worker.k8_gateway_actions.dispatch_build_and_push import OCIImageBuilder; "
+                                "    job_secrets = json.loads(base64.b64decode(os.environ['BUILDER_JOB_SECRETS_B64']).decode()); "
+                                "    builder = OCIImageBuilder(); "
+                                "    builder(git_repo=os.environ['BUILDER_GIT_REPO'], version=os.environ['BUILDER_VERSION'], "
+                                "    job_secrets=job_secrets, dockerfile=os.environ['BUILDER_DOCKERFILE'] or None, "
+                                "    base_stack=os.environ['BUILDER_BASE_STACK'] or None, force_build=os.environ['BUILDER_FORCE_BUILD'] == 'True', "
+                                "    user_id=os.environ['BUILDER_USER_ID'] or None, job_name=os.environ['BUILDER_JOB_NAME'] or None, internal_build=True); "
+                                "except Exception as e: "
+                                "    print(f'FATAL ERROR in builder: {e}', flush=True); "
+                                "    import traceback; traceback.print_exc(); "
+                                "    sys.exit(1)\""
                             ],
                             "securityContext": {"privileged": True} # Needed for buildah in many k8s setups
                         }],
@@ -339,11 +362,25 @@ class OCIImageBuilder:
             raise ValueError(f"Could not find pod for job {job_name}")
 
         # Wait for container to be ready or at least not pending
-        for _ in range(20):
+        for i in range(30):
             pod = core_v1.read_namespaced_pod(name=pod_name, namespace=env.WKUBE_K8_NAMESPACE)
-            if pod.status.phase != 'Pending':
+            phase = pod.status.phase
+            if phase != 'Pending':
+                print(f"Pod {pod_name} moved to phase {phase}.")
                 break
-            print(f"Waiting for pod {pod_name} to start (current phase: {pod.status.phase})...")
+            
+            # Check for container issues
+            container_statuses = pod.status.container_statuses
+            if container_statuses:
+                state = container_statuses[0].state
+                if state.waiting:
+                    print(f"Waiting for pod {pod_name} (Reason: {state.waiting.reason}, Message: {state.waiting.message})")
+                elif state.terminated:
+                    print(f"Pod {pod_name} terminated immediately (Reason: {state.terminated.reason}, Exit Code: {state.terminated.exit_code})")
+                    break
+            else:
+                print(f"Waiting for pod {pod_name} to start (current phase: {phase})...")
+            
             time.sleep(3)
 
         # Stream logs
