@@ -1,11 +1,11 @@
-# Use the official R 4.4 image from Rocker
-FROM rocker/r-ver:4.4
+# Use the r2u image from Rocker
+FROM rocker/r2u:22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
