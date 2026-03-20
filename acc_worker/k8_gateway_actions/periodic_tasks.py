@@ -22,7 +22,7 @@ HEADERS = {
 def update_stalled_jobs_status():
     res = http_client.request(
         "GET",
-        f'{env.ACCELERATOR_CLI_BASE_URL}/v1/projects/periodic-tasks/update-stalled-jobs-status/',
+        f'{env.ACCELERATOR_CLI_BASE_URL}/api/v1/projects/periodic-tasks/update-stalled-jobs-status/',
         headers=HEADERS
     )
 
@@ -115,7 +115,7 @@ def delete_orphan_pvcs():
 
         res = http_client.request(
             "POST",
-            f'{env.ACCELERATOR_CLI_BASE_URL}/v1/projects/periodic-tasks/filter-pending-pvcs/',
+            f'{env.ACCELERATOR_CLI_BASE_URL}/api/v1/projects/periodic-tasks/filter-pending-pvcs/',
             json=batch,
             headers=HEADERS
         )
