@@ -24,7 +24,7 @@ client.Configuration.set_default(kube_config)
 v1 = client.CoreV1Api()
 
 # Define API endpoint for sending events
-API_ENDPOINT = f'{env.ACCELERATOR_CLI_BASE_URL}/v1/projects/webhook-event/'
+API_ENDPOINT = f'{env.ACCELERATOR_CLI_BASE_URL}/api/v1/projects/webhook-event/'
 
 if not env.ACCELERATOR_APP_TOKEN:
     raise ValueError("env.ACCELERATOR_APP_TOKEN is not set.")
