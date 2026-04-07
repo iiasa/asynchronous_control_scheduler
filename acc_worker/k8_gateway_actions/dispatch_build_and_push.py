@@ -413,25 +413,26 @@ class OCIImageBuilder:
 
     @cached_property
     def commit_hash(self):
-        if not self.git_repo.startswith("s3accjobstore://"):
+        if self.git_repo.startswith("s3accjobstore://"):
+            return None
 
-            try:
-                # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
-                command = [
-                    "git", "ls-remote",
-                    f"{self.git_repo}",
-                    f"{self.version}"
-                ]
-                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)   
-                output, error = process.communicate()
-                if process.returncode != 0:
-                    raise ValueError(f"Failed to get commit hash: {error.decode().strip()}")
-                commit_hash = output.decode().strip().split()[0]
-                return commit_hash[:7]
-            except Exception as e:
-                # The fallback will happen if the version is itself a commit hash
-                print(f"Couldn't get commit hash: {str(e)}")
-                return self.version
+        try:
+            # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
+            command = [
+                "git", "ls-remote",
+                f"{self.git_repo}",
+                f"{self.version}"
+            ]
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise ValueError(f"Failed to get commit hash: {error.decode().strip()}")
+            commit_hash = output.decode().strip().split()[0]
+            return commit_hash[:7]
+        except Exception as e:
+            # The fallback will happen if the version is itself a commit hash
+            print(f"Couldn't get commit hash: {str(e)}")
+            return self.version
 
         
     
