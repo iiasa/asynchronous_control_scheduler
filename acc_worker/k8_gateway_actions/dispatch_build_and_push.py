@@ -652,33 +652,13 @@ class OCIImageBuilder:
 
     
     def build(self):
-
-
-        login_command = [
-               "sudo", "buildah", 
-               "login", 
-               "--tls-verify=false", 
-               f"--username={env.IMAGE_REGISTRY_USER}", 
-               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
-               env.IMAGE_REGISTRY_URL
-            ]
         # buildah login --username myregistry --password myregistrypassword registry:8443
 
-        exec_command(login_command)
-        
         command = [
-            "sudo",
-            "buildah",
-            "bud"
-        ]
-
-        if self.force_build:
-            command.append("--layers")
-        else:
-            command.append("--layers")
-       
-
-        command += [
+            "sudo", "buildah", "bud",
+            "--tls-verify=false",
+            "--creds", f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
+            "--layers",
             "--cache-from", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
             "--cache-to", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
             "--isolation", "chroot",
@@ -690,20 +670,15 @@ class OCIImageBuilder:
         exec_command(command)
 
     def push_to_registry(self):
-
-        login_command = [
-               "sudo", "buildah", 
-               "login", 
-               "--tls-verify=false", 
-               f"--username={env.IMAGE_REGISTRY_USER}", 
-               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
-               env.IMAGE_REGISTRY_URL
-            ]
         # buildah login --username myregistry --password myregistrypassword registry:8443
 
-        exec_command(login_command)
-
-        push_command = ["sudo", "buildah", "push", "--tls-verify=false", "--remove-signatures",  self.image_tag]
+        push_command = [
+            "sudo", "buildah", "push",
+            "--tls-verify=false",
+            "--creds", f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
+            "--remove-signatures",
+            self.image_tag
+        ]
 
         exec_command(push_command)
 
