@@ -121,7 +121,7 @@ def delete_orphan_pvcs():
         )
 
         if res.status != 200:
-            raise HTTPError(f"HTTP error occurred while requesting deleteable pvcs: Status code {res.status}")
+            raise HTTPError(f"HTTP error occurred while requesting deletable pvcs: Status code {res.status}")
         
         pending_pvcs = set(res.json())
         batch_set = set(batch)
