@@ -114,31 +114,18 @@ def process_event(event):
 
 def watch_and_process_events():
     """Watch Kubernetes events and process them in parallel."""
-    resource_version = None
-
     try:
         while True:
             try:
                 w = watch.Watch()
-
-                kwargs = {}
-                if resource_version:
-                    kwargs['resource_version'] = resource_version
-
-                print(f"Starting watch stream. Resource version: {resource_version or 'Latest'}")
-                stream = w.stream(v1.list_namespaced_event, env.WKUBE_K8_NAMESPACE, **kwargs)
+                stream = w.stream(v1.list_namespaced_event, env.WKUBE_K8_NAMESPACE)
 
                 for event in stream:
-                    event_object = event.get('object')
-                    if event_object and event_object.metadata.resource_version:
-                        resource_version = event_object.metadata.resource_version
-
                     process_event(event)
 
             except client.exceptions.ApiException as e:
                 if e.status == 410:  # Gone
-                    print("Resource version expired. Resetting to fetch latest...")
-                    resource_version = None
+                    print("Resource version expired. Reconnecting...")
                     continue
                 else:
                     print(f"API exception: {e}")
