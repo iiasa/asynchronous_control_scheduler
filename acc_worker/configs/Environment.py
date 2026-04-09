@@ -2,7 +2,8 @@ import os
 from typing import Optional, get_type_hints
 from functools import lru_cache
 
-class AppSetting():
+
+class AppSetting:
     def __init__(self):
         self.CELERY_BROKER_URL:str = os.environ['CELERY_BROKER_URL']
         self.ACCELERATOR_CLI_BASE_URL: str = os.environ.get('ACCELERATOR_CLI_BASE_URL', 'http://default-cli-base-url/')
@@ -27,6 +28,7 @@ class AppSetting():
         self.ACCELERATOR_APP_TOKEN: Optional[str] = os.environ.get('ACCELERATOR_APP_TOKEN', None)
 
         self.TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64: Optional[str] = os.environ.get('TUNNEL_GATEWAY_SSH_PRIVATE_KEY_BASE64', None)
+        self.USE_HOST_NAMESPACES: bool = os.environ.get('USE_HOST_NAMESPACES', '0').lower() in ('y', 'yes', 't', 'true', 'on', '1')
 
 @lru_cache
 def get_environment_variables():
