@@ -37,8 +37,9 @@ HEADERS = {
 executor = ThreadPoolExecutor(max_workers=10)
 
 # Configure HTTP client with retries
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 retries = urllib3.util.Retry(total=3, backoff_factor=0.5)
-http_client = urllib3.PoolManager(cert_reqs="CERT_NONE", num_pools=20, retries=retries, timeout=5.0)
+http_client = urllib3.PoolManager(cert_reqs="CERT_NONE", num_pools=20, retries=retries, timeout=5.)
 
 
 def send_event(event):
