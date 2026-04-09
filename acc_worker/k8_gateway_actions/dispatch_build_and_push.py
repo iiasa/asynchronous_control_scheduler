@@ -1185,12 +1185,12 @@ class DispatchWkubeTask():
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": float(self.kwargs['required_cores']),
-                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 2 * 1024 ** 3)
                                     },
                                      "requests": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": self.kwargs['required_cores'],
-                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 2 * 1024 ** 3)
                                     }
                                 },
                                
