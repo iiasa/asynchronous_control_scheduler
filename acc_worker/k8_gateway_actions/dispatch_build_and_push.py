@@ -1158,7 +1158,7 @@ class DispatchWkubeTask():
                     },
                     "spec": {
                         # "activeDeadlineSeconds": self.kwargs['timeout'],
-                        "hostUsers": False,   # TODO make is configurable @wrufesh
+                        "hostUsers": env.USE_HOST_NAMESPACES,
                         "terminationGracePeriodSeconds": 30,
                         "initContainers": [
                             {
