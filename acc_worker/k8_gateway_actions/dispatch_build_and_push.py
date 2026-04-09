@@ -415,7 +415,7 @@ class OCIImageBuilder:
     @cached_property
     def commit_hash(self):
         if self.git_repo.startswith("s3accjobstore://"):
-            return None
+            return "latest"
 
         try:
             # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
