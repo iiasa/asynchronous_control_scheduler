@@ -7,11 +7,11 @@ class AppSetting():
         self.CELERY_BROKER_URL:str = os.environ['CELERY_BROKER_URL']
         self.ACCELERATOR_CLI_BASE_URL: str = os.environ.get('ACCELERATOR_CLI_BASE_URL', 'http://default-cli-base-url/')
         self.WKUBE_AGENT_PULLER: str = os.environ.get('WKUBE_AGENT_PULLER', 'registry.iiasa.ac.at/accelerator/wkube-agent-puller:latest')
-        self.IMAGE_REGISTRY_URL: str = os.environ.get('IMAGE_REGISTRY_URL')
+        self.IMAGE_REGISTRY_URL: str = os.environ['IMAGE_REGISTRY_URL']
         # This setting is to accommodate registry which supports project name. value eg: 'accelerator/'
         self.IMAGE_REGISTRY_TAG_PREFIX: str = os.environ.get('IMAGE_REGISTRY_TAG_PREFIX', '') 
-        self.IMAGE_REGISTRY_USER: str = os.environ.get('IMAGE_REGISTRY_USER')
-        self.IMAGE_REGISTRY_PASSWORD: str = os.environ.get('IMAGE_REGISTRY_PASSWORD')
+        self.IMAGE_REGISTRY_USER: str = os.environ['IMAGE_REGISTRY_USER']
+        self.IMAGE_REGISTRY_PASSWORD: str = os.environ['IMAGE_REGISTRY_PASSWORD']
         self.OCI_BUILDER_IMAGE: str = os.environ.get('OCI_BUILDER_IMAGE', f"{self.IMAGE_REGISTRY_URL}/{self.IMAGE_REGISTRY_TAG_PREFIX}image-builder:latest")
         self.WKUBE_SECRET_JSON_B64: Optional[str] = os.environ.get('WKUBE_SECRET_JSON_B64', None)
         self.WKUBE_K8_NAMESPACE: str = os.environ.get('WKUBE_K8_NAMESPACE', "wkube")
