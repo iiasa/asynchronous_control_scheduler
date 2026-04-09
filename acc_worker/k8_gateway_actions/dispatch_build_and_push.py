@@ -277,6 +277,7 @@ class OCIImageBuilder:
                         "containers": [{
                             "name": "builder",
                             "image": env.OCI_BUILDER_IMAGE,
+                            "imagePullPolicy": "Always",
                             "env": env_vars,
                             "resources": {
                                 "requests": {
@@ -1178,6 +1179,7 @@ class DispatchWkubeTask():
                             {
                                 "name": job_name,
                                 "image": self.kwargs['docker_image'],
+                                "imagePullPolicy": "Always",
                                 "command": main_container_command,
                                 "resources": {
                                     "limits": {
