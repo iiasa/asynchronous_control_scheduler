@@ -18,7 +18,7 @@ from accli import AjobCliService
 from acc_worker.acc_native_jobs.merge_csv_regional_timeseries import CSVRegionalTimeseriesMergeService
 
 from acc_worker.acc_native_jobs.validate_csv_regional_timeseries import CsvRegionalTimeseriesVerificationService
-from acc_worker.k8_gateway_actions.dispatch_build_and_push import DispachWkubeTask
+from acc_worker.k8_gateway_actions.dispatch_build_and_push import DispatchWkubeTask
 from .exceptions import WkubeRetryException
 from acc_worker.k8_gateway_actions.registries import create_default_registry_secret_resource
 from acc_worker.k8_gateway_actions.service_accounts import add_pvc_role_to_service_account
@@ -276,7 +276,7 @@ def at_start(sender, **k):
 def clean_unused_pvcs_task():
 
     if not env.WKUBE_SECRET_JSON_B64:
-        print("Wkube k8s secrests env var WKUBE_SECRET_JSON_B64 not set.")
+        print("Wkube k8s secrets env var WKUBE_SECRET_JSON_B64 not set.")
         return
 
     delete_orphan_pvcs()
@@ -298,7 +298,7 @@ def clean_unused_pvcs_task():
 def delete_pvc_task(pvc_name):
 
     if not env.WKUBE_SECRET_JSON_B64:
-        print("Wkube k8s secrests env var WKUBE_SECRET_JSON_B64 not set.")
+        print("Wkube k8s secrets env var WKUBE_SECRET_JSON_B64 not set.")
         return
 
     delete_pvc(pvc_name)
@@ -357,5 +357,5 @@ def merge_csv_regional_timeseries(*args, **kwargs):
 @wkube_capture_log
 @handle_wkube_soft_time_limit
 def dispatch_wkube_task(*args, **kwargs):
-    dispatch = DispachWkubeTask(*args, **kwargs)
+    dispatch = DispatchWkubeTask(*args, **kwargs)
     dispatch()

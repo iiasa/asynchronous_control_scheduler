@@ -60,7 +60,7 @@ def escape_character(input_string, char_to_escape):
 class BaseStack(str, enum.Enum):
     """For each stack below a dockerfile should be present in 
     predefined stacks in acc_worker/k8_gateway_actions/predefined_stacks 
-    folder with the following nameing convension 'Dockerfile.<stackname>'
+    folder with the following naming convention 'Dockerfile.<stackname>'
 
     Each stack may demand some kind of stack native file to be present in
     job or project folder.
@@ -91,7 +91,7 @@ def exec_command(command, raise_exception=True, cwd=None):
 
 class OCIImageBuilder:
     """Build image based on Dockerfile in git repo or
-       base stack choosen
+       base stack chosen
     """
 
     IMAGE_BUILDING_SITE = "image_building_site"
@@ -413,30 +413,31 @@ class OCIImageBuilder:
 
     @cached_property
     def commit_hash(self):
-        if not self.git_repo.startswith("s3accjobstore://"):
+        if self.git_repo.startswith("s3accjobstore://"):
+            return "latest"
 
-            try:
-                # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
-                command = [
-                    "git", "ls-remote",
-                    f"{self.git_repo}",
-                    f"{self.version}"
-                ]
-                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)   
-                output, error = process.communicate()
-                if process.returncode != 0:
-                    raise ValueError(f"Failed to get commit hash: {error.decode().strip()}")
-                commit_hash = output.decode().strip().split()[0]
-                return commit_hash[:7]
-            except Exception as e:
-                # The fallback will happen if the version is itself a commit hash
-                print(f"Couldn't get commit hash: {str(e)}")
-                return self.version
+        try:
+            # git ls-remote https://username:password@git.example.com/your/repo.git main | awk '{print substr($1, 1, 7)}'
+            command = [
+                "git", "ls-remote",
+                f"{self.git_repo}",
+                f"{self.version}"
+            ]
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            if process.returncode != 0:
+                raise ValueError(f"Failed to get commit hash: {error.decode().strip()}")
+            commit_hash = output.decode().strip().split()[0]
+            return commit_hash[:7]
+        except Exception as e:
+            # The fallback will happen if the version is itself a commit hash
+            print(f"Couldn't get commit hash: {str(e)}")
+            return self.version
 
         
     
     def set_image_building_site(self):
-        """ The logic here is a best way to structure folder to maximize cacheing
+        """ The logic here is the best way to structure folder to maximize cacheing
         
         >> When the job is dispatched from remote as a zip folder then the cacheing key is 
         based on job name.
@@ -447,22 +448,13 @@ class OCIImageBuilder:
           >> With same branch and job name the cacheing key will be same and the image build layers can be reused
         """
 
-        hased_job_name = uuid.uuid5(uuid.NAMESPACE_DNS, self.job_name).hex[:7]
-
-        # if self.git_repo.startswith("s3accjobstore://"):
-        #     self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{self.user_id}/{hased_job_name}"
-        # else:
-
-        #     normalized_repo_url_hash = uuid.uuid5(uuid.NAMESPACE_DNS, self.normalized_repo_url).hex[:7]
-        #     self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{self.user_id}/{hased_job_name}/{normalized_repo_url_hash}/{self.version}"
-
         self.IMAGE_BUILDING_SITE = f"{self.IMAGE_BUILDING_SITE}/{uuid.uuid4().hex}"
 
     def set_dockerfile_path(self):
         # Default dockerfile path
         self.dockerfile_path = f"{self.IMAGE_BUILDING_SITE}/Dockerfile"
 
-        # Step 2. Either dockerfile should be present or base_stack should be choosen
+        # Step 2. Either dockerfile should be present or base_stack should be chosen
         if not (self.dockerfile or self.base_stack):
             raise ValueError("Either dockerfile of base_stack should be present with the job")
         
@@ -647,38 +639,18 @@ class OCIImageBuilder:
     @cached_property
     def image_tag(self):
         
-        # Addition of get_dockerfile_hash is to prevent collision beteween same source with different base stacks
+        # Addition of get_dockerfile_hash is to prevent collision between same source with different base stacks
         return f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}{self.normalized_repo_url}-{self.get_dockerfile_hash}:{self.commit_hash}"
 
     
     def build(self):
-
-
-        login_command = [
-               "sudo", "buildah", 
-               "login", 
-               "--tls-verify=false", 
-               f"--username={env.IMAGE_REGISTRY_USER}", 
-               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
-               env.IMAGE_REGISTRY_URL
-            ]
         # buildah login --username myregistry --password myregistrypassword registry:8443
 
-        exec_command(login_command)
-        
         command = [
-            "sudo",
-            "buildah",
-            "bud"
-        ]
-
-        if self.force_build:
-            command.append("--layers")
-        else:
-            command.append("--layers")
-       
-
-        command += [
+            "sudo", "buildah", "bud",
+            "--tls-verify=false",
+            "--creds", f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
+            "--layers",
             "--cache-from", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
             "--cache-to", f"{env.IMAGE_REGISTRY_URL}/{env.IMAGE_REGISTRY_TAG_PREFIX}project-cache",
             "--isolation", "chroot",
@@ -690,20 +662,15 @@ class OCIImageBuilder:
         exec_command(command)
 
     def push_to_registry(self):
-
-        login_command = [
-               "sudo", "buildah", 
-               "login", 
-               "--tls-verify=false", 
-               f"--username={env.IMAGE_REGISTRY_USER}", 
-               f"--password={env.IMAGE_REGISTRY_PASSWORD}",
-               env.IMAGE_REGISTRY_URL
-            ]
         # buildah login --username myregistry --password myregistrypassword registry:8443
 
-        exec_command(login_command)
-
-        push_command = ["sudo", "buildah", "push", "--tls-verify=false", "--remove-signatures",  self.image_tag]
+        push_command = [
+            "sudo", "buildah", "push",
+            "--tls-verify=false",
+            "--creds", f"{env.IMAGE_REGISTRY_USER}:{env.IMAGE_REGISTRY_PASSWORD}",
+            "--remove-signatures",
+            self.image_tag
+        ]
 
         exec_command(push_command)
 
@@ -765,7 +732,7 @@ BuildOCIImage = OCIImageBuilder()
 #     def __init__(self, serialized_task: dict):
 #         pass
     
-class DispachWkubeTask():
+class DispatchWkubeTask():
 
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -1015,7 +982,7 @@ class DispachWkubeTask():
 
     def get_image_pull_secrets(self):
         
-        registires_name = DEFAULT_REGISTRIES.keys()
+        registries_name = DEFAULT_REGISTRIES.keys()
 
         job_secrets = self.kwargs.get('job_secrets', {})
 
@@ -1033,9 +1000,9 @@ class DispachWkubeTask():
                 email
             )
 
-            registires_name += registry_name
+            registries_name += registry_name
         
-        return registires_name
+        return registries_name
 
     
     def launch_k8_job(self):
@@ -1190,7 +1157,7 @@ class DispachWkubeTask():
                     },
                     "spec": {
                         # "activeDeadlineSeconds": self.kwargs['timeout'],
-                        "hostUsers": False,   # TODO make is configurable @wrufesh
+                        "hostUsers": env.USE_HOST_NAMESPACES,
                         "terminationGracePeriodSeconds": 30,
                         "initContainers": [
                             {
@@ -1216,12 +1183,12 @@ class DispachWkubeTask():
                                     "limits": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": float(self.kwargs['required_cores']),
-                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 2 * 1024 ** 3)
                                     },
                                      "requests": {
                                         "memory": self.kwargs['required_ram'],
                                         "cpu": self.kwargs['required_cores'],
-                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 1024*1024*1024 * 2)
+                                        "ephemeral-storage": self.kwargs.get('required_storage_local', 2 * 1024 ** 3)
                                     }
                                 },
                                
@@ -1308,7 +1275,7 @@ class DispachWkubeTask():
         # pods = [pod['metadata']['name'] for pod in pods['items']]
 
         # if len(pods) != 1:
-        #     raise ValueError("Exacly one pod should be present")
+        #     raise ValueError("Exactly one pod should be present")
 
         # self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)
         # self.print_pod_logs(pods[0], env.WKUBE_K8_NAMESPACE)
@@ -1394,7 +1361,7 @@ class DispachWkubeTask():
         # pods = [pod['metadata']['name'] for pod in pods['items']]
 
         # if len(pods) != 1:
-        #     raise ValueError("Exacly one pod should be present")
+        #     raise ValueError("Exactly one pod should be present")
 
 
         # self.monitor_pod(pods[0], job_name, env.WKUBE_K8_NAMESPACE)

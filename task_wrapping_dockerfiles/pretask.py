@@ -73,12 +73,12 @@ async def main():
         
         input_mapping_new = input_mapping.replace('acc://', '__acc__')
 
-        splitted_input_mapping_new = input_mapping_new.split(':')
+        split_input_mapping_new = input_mapping_new.split(':')
         
-        if len(splitted_input_mapping_new) != 2:
+        if len(split_input_mapping_new) != 2:
             raise ValueError("Invalid mapping syntax")
         
-        source, destination = splitted_input_mapping_new
+        source, destination = split_input_mapping_new
 
         if not (source.startswith('__acc__') or source.startswith('/mnt/data')):
             raise ValueError("Invalid source in input mappings")
@@ -102,12 +102,12 @@ async def main():
     for output_mapping in output_mappings:
         output_mapping_new = output_mapping.replace('acc://', '__acc__')
 
-        splitted_output_mapping_new = output_mapping_new.split(':')
+        split_output_mapping_new = output_mapping_new.split(':')
 
-        if len(splitted_output_mapping_new) != 2:
+        if len(split_output_mapping_new) != 2:
             raise ValueError("Invalid mapping syntax")
 
-        source, destination = splitted_output_mapping_new
+        source, destination = split_output_mapping_new
 
         if (source.startswith('__acc__')):
             raise ValueError("Invalid source in output mappings")
